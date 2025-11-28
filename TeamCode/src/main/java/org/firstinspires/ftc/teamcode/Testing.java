@@ -17,11 +17,10 @@ import com.pedropathing.util.Timer;
 
 @TeleOp(name = "Testing", group = "Linear Opmode")
 public class Testing extends LinearOpMode {
-
-
-
     // Declare OpMode members for each of the 4 motors.
     private ElapsedTime runtime = new ElapsedTime();
+    private ElapsedTime pushTimer1 = new ElapsedTime();
+    private ElapsedTime pushTimer = new ElapsedTime();
 
     //Drive
     private DcMotor leftFrontDrive = null;
@@ -32,8 +31,12 @@ public class Testing extends LinearOpMode {
     private DcMotorEx shootMotor = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
-    final double closeLaunch = 1000; //in ticks/second for the close goal.
-    final double farLaunch = 1330;
+    final double closeLaunch = 1050; //in ticks/second for the close goal.
+    final double farLaunch = 1350;
+    final double pushServoDown = 0.88;
+    final double pushServoUp = 0.3;
+    final double blockServoDown = 0.83;
+    final double blockServoUp = 0.3;
 
     @Override
     public void runOpMode() {
@@ -46,8 +49,6 @@ public class Testing extends LinearOpMode {
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
-        //Claw
-
 
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -67,30 +68,12 @@ public class Testing extends LinearOpMode {
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
-        boolean intakeToggle = false;
-        boolean aAlreadyPressed = false;
-        boolean motorOn = false;
-        boolean bAlreadyPressed = false;
-        boolean motorOnb = false;
-        boolean yAlreadyPressed = false;
-        boolean motorOny = false;
-        boolean xAlreadyPressed = false;
-        boolean motorOnx = false;
-        boolean shootingState = false;
-        boolean shooterOn = true;
-
-
-
-        pushServo.setPosition(0.9);
-        blockServo.setPosition(0.9);
-
+        int intakeOn = 0, shots = 0;
+        pushServo.setPosition(pushServoDown);
+        blockServo.setPosition(blockServoDown);
         waitForStart();
         runtime.reset();
-        boolean isPushingManual = false;
-        boolean isPushing = false;
-        int shots = 0;
-        ElapsedTime pushTimer = new ElapsedTime();
-        ElapsedTime pushTimer1 = new ElapsedTime();
+        boolean isPushingManual = false, isPushing = false, shootingState = false;
         shootMotor.setVelocity(closeLaunch);
         gamepad1.setLedColor(1,0,0, LED_DURATION_CONTINUOUS);
 
@@ -98,28 +81,15 @@ public class Testing extends LinearOpMode {
 
         while (opModeIsActive()) {
             double max;
-
             // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
             double axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
             double lateral = gamepad1.left_stick_x;
             double yaw = gamepad1.right_stick_x;
-
             double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
-
-            // Combine the joystick requests for each axis-motion to determine each wheel's power.
-            // Set up a variable for each drive wheel to save the power level for telemetry.
-
-
             double leftFrontPower = (axial + lateral + yaw) / denominator;
             double rightFrontPower = (axial - lateral - yaw) / denominator;
             double leftBackPower = (axial - lateral +  yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
-
-
-
-
-
-
             // Send calculated power to wheels
             leftFrontDrive.setPower(leftFrontPower);
             leftBackDrive.setPower(leftBackPower);
@@ -127,6 +97,90 @@ public class Testing extends LinearOpMode {
             rightBackDrive.setPower(rightBackPower);
 
 
+            if (gamepad1.circleWasPressed())
+                if (intakeOn == 1)
+                    intakeOn = 0;
+                else
+                    intakeOn = 1;
+            if (gamepad1.squareWasPressed())
+                if (intakeOn == 2)
+                    intakeOn = 0;
+                else
+                    intakeOn = 2;
+            if (intakeOn == 1)
+                intakeMotor.setPower(-1);
+            else if (intakeOn == 2)
+                intakeMotor.setPower(1);
+            else
+                intakeMotor.setPower(0);
+
+            if (gamepad1.right_trigger > 0.3 && !isPushing && shots == 0) {
+                shots = 3;
+                blockServo.setPosition(blockServoUp);
+            }
+
+            if (!isPushing && shots > 0) {
+                isPushing = true;
+                pushTimer1.reset();
+                pushServo.setPosition(pushServoUp);     // PUSH UP
+
+            }
+
+            if (isPushing) {
+                double t = pushTimer1.milliseconds();
+
+                if (t <= 150) {
+                    pushServo.setPosition(pushServoUp);
+                    //blockServo.setPosition(0.3);
+                }
+                else if (t <= 300) {
+                    pushServo.setPosition(pushServoDown);
+                    //blockServo.setPosition(0.9);
+                }
+                else {
+                    isPushing = false;
+                    shots--;
+
+                if (shots == 0){
+                    blockServo.setPosition(blockServoDown);  // Down (adjust if needed)
+                }
+
+                }
+            }
+            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
+                // Start the sequence when Y is pressed
+                isPushingManual = true;
+                pushTimer.reset();
+                pushServo.setPosition(pushServoUp);
+                blockServo.setPosition(blockServoUp);// move to first position (up)
+            }
+            if (isPushingManual) {
+                // After 300ms, return servo down
+                if (pushTimer.milliseconds() > 400) {
+                    pushServo.setPosition(pushServoDown);
+                    blockServo.setPosition(blockServoDown);// move down
+                    isPushingManual = false;           // end the sequence
+                }
+            }
+            if (gamepad1.leftBumperWasPressed()){
+                if (!shootingState){
+                    shootMotor.setVelocity(farLaunch);
+                    shootingState = true;
+                    gamepad1.setLedColor(0,0,1, LED_DURATION_CONTINUOUS);
+                }
+                else{
+                    shootMotor.setVelocity(closeLaunch);
+                    shootingState = false;
+                    gamepad1.setLedColor(1,0,0, LED_DURATION_CONTINUOUS);
+                }
+            }
+
+
+
+
+
+
+/*
             if (gamepad1.left_bumper){
                 if (!shootingState){
                     shootMotor.setVelocity(farLaunch);
@@ -159,17 +213,7 @@ public class Testing extends LinearOpMode {
             }
             aAlreadyPressed = gamepad1.a;
 
-            if(gamepad1.left_trigger > 0.3 && !bAlreadyPressed){
-                motorOnb = !motorOnb;
-                if(motorOnb){
-                    intakeMotor.setPower(-1);
-                }
-                else{
-                    intakeMotor.setPower(0);
-                }
-            }
-            bAlreadyPressed = gamepad1.left_trigger > 0.3;
-/*
+
             if(gamepad1.y && !yAlreadyPressed){
                 motorOny = !motorOny;
                 if(motorOny){
@@ -183,68 +227,8 @@ public class Testing extends LinearOpMode {
             }
             yAlreadyPressed = gamepad1.y;
 
+
  */
-
-            if (gamepad1.right_trigger > 0.3 && !isPushing && shots == 0) {
-                shots = 3;  // repeat 3 times
-            }
-
-// run the same sequence 3 times
-            if (!isPushing && shots > 0) {
-                isPushing = true;
-                pushTimer1.reset();
-                pushServo.setPosition(0.3);
-                blockServo.setPosition(0.3);
-            }
-
-            if (isPushing) {
-                if (pushTimer1.milliseconds() > 400) {
-                    pushServo.setPosition(0.9);
-                    blockServo.setPosition(0.9);
-                    isPushing = false;
-                    shots--;
-                }
-            }
-
-
-
-            if (gamepad1.right_bumper && !isPushingManual) {
-                // Start the sequence when Y is pressed
-                isPushingManual = true;
-                pushTimer.reset();
-                pushServo.setPosition(0.3);
-                blockServo.setPosition(0.3);// move to first position (up)
-            }
-            if (isPushingManual) {
-                // After 300ms, return servo down
-
-                if (pushTimer.milliseconds() > 400) {
-                    pushServo.setPosition(0.9);
-                    blockServo.setPosition(0.9);// move down
-                    isPushingManual = false;           // end the sequence
-                }
-            }
-
-            if(gamepad1.x && !xAlreadyPressed){
-                motorOnx = !motorOnx;
-                if(motorOnx){
-                    intakeMotor.setPower(1);
-                }
-                else{
-                    intakeMotor.setPower(0);
-                }
-            }
-            xAlreadyPressed = gamepad1.x;
-
-
-
-
-
-
-
-
-
-
         }
     }
 }

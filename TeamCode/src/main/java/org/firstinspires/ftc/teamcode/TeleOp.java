@@ -1,22 +1,17 @@
 package org.firstinspires.ftc.teamcode;
 
 
-
 import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 
-import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
-import com.pedropathing.util.Timer;
 
-@TeleOp(name = "Testing", group = "Linear Opmode")
-public class Testing extends LinearOpMode {
+@com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "Linear Opmode")
+public class TeleOp extends LinearOpMode {
     // Declare OpMode members for each of the 4 motors.
     private ElapsedTime runtime = new ElapsedTime();
     private ElapsedTime pushTimer1 = new ElapsedTime();
@@ -75,8 +70,7 @@ public class Testing extends LinearOpMode {
         runtime.reset();
         boolean isPushingManual = false, isPushing = false, shootingState = false;
         shootMotor.setVelocity(closeLaunch);
-        gamepad1.setLedColor(1,0,0, LED_DURATION_CONTINUOUS);
-
+        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
 
 
         while (opModeIsActive()) {
@@ -88,7 +82,7 @@ public class Testing extends LinearOpMode {
             double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
             double leftFrontPower = (axial + lateral + yaw) / denominator;
             double rightFrontPower = (axial - lateral - yaw) / denominator;
-            double leftBackPower = (axial - lateral +  yaw) / denominator;
+            double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
             // Send calculated power to wheels
             leftFrontDrive.setPower(leftFrontPower);
@@ -132,18 +126,16 @@ public class Testing extends LinearOpMode {
                 if (t <= 150) {
                     pushServo.setPosition(pushServoUp);
                     //blockServo.setPosition(0.3);
-                }
-                else if (t <= 300) {
+                } else if (t <= 300) {
                     pushServo.setPosition(pushServoDown);
                     //blockServo.setPosition(0.9);
-                }
-                else {
+                } else {
                     isPushing = false;
                     shots--;
 
-                if (shots == 0){
-                    blockServo.setPosition(blockServoDown);  // Down (adjust if needed)
-                }
+                    if (shots == 0) {
+                        blockServo.setPosition(blockServoDown);  // Down (adjust if needed)
+                    }
 
                 }
             }
@@ -162,16 +154,15 @@ public class Testing extends LinearOpMode {
                     isPushingManual = false;           // end the sequence
                 }
             }
-            if (gamepad1.leftBumperWasPressed()){
-                if (!shootingState){
+            if (gamepad1.leftBumperWasPressed()) {
+                if (!shootingState) {
                     shootMotor.setVelocity(farLaunch);
                     shootingState = true;
-                    gamepad1.setLedColor(0,0,1, LED_DURATION_CONTINUOUS);
-                }
-                else{
+                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
+                } else {
                     shootMotor.setVelocity(closeLaunch);
                     shootingState = false;
-                    gamepad1.setLedColor(1,0,0, LED_DURATION_CONTINUOUS);
+                    gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
                 }
             }
 

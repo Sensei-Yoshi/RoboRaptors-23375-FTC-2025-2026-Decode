@@ -12,8 +12,8 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "Linear Opmode")
 public class TeleOp extends LinearOpMode {
-    // Declare OpMode members for each of the 4 motors.
-    private ElapsedTime runtime = new ElapsedTime();
+
+
     private ElapsedTime pushTimer1 = new ElapsedTime();
     private ElapsedTime pushTimer = new ElapsedTime();
 
@@ -67,16 +67,14 @@ public class TeleOp extends LinearOpMode {
         pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
         waitForStart();
-        runtime.reset();
-        boolean isPushingManual = false, isPushing = false, shootingState = false;
+        boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true;
         shootMotor.setVelocity(closeLaunch);
         gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
 
 
         while (opModeIsActive()) {
             double max;
-            // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-            double axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+            double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
             double yaw = gamepad1.right_stick_x;
             double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
@@ -84,7 +82,7 @@ public class TeleOp extends LinearOpMode {
             double rightFrontPower = (axial - lateral - yaw) / denominator;
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
-            // Send calculated power to wheels
+
             leftFrontDrive.setPower(leftFrontPower);
             leftBackDrive.setPower(leftBackPower);
             rightFrontDrive.setPower(rightFrontPower);
@@ -112,48 +110,39 @@ public class TeleOp extends LinearOpMode {
                 shots = 3;
                 blockServo.setPosition(blockServoUp);
             }
-
             if (!isPushing && shots > 0) {
                 isPushing = true;
                 pushTimer1.reset();
                 pushServo.setPosition(pushServoUp);     // PUSH UP
-
             }
-
             if (isPushing) {
                 double t = pushTimer1.milliseconds();
-
                 if (t <= 150) {
                     pushServo.setPosition(pushServoUp);
-                    //blockServo.setPosition(0.3);
                 } else if (t <= 300) {
                     pushServo.setPosition(pushServoDown);
-                    //blockServo.setPosition(0.9);
                 } else {
                     isPushing = false;
                     shots--;
-
                     if (shots == 0) {
-                        blockServo.setPosition(blockServoDown);  // Down (adjust if needed)
+                        blockServo.setPosition(blockServoDown);
                     }
-
                 }
             }
             if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
-                // Start the sequence when Y is pressed
                 isPushingManual = true;
                 pushTimer.reset();
                 pushServo.setPosition(pushServoUp);
-                blockServo.setPosition(blockServoUp);// move to first position (up)
+                blockServo.setPosition(blockServoUp);
             }
             if (isPushingManual) {
-                // After 300ms, return servo down
                 if (pushTimer.milliseconds() > 400) {
                     pushServo.setPosition(pushServoDown);
-                    blockServo.setPosition(blockServoDown);// move down
-                    isPushingManual = false;           // end the sequence
+                    blockServo.setPosition(blockServoDown);
+                    isPushingManual = false;
                 }
             }
+
             if (gamepad1.leftBumperWasPressed()) {
                 if (!shootingState) {
                     shootMotor.setVelocity(farLaunch);
@@ -165,6 +154,28 @@ public class TeleOp extends LinearOpMode {
                     gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
                 }
             }
+/*
+            if (gamepad1.xWasPressed() && flyWheelOn){
+                shootMotor.setVelocity(0);
+            }
+            else{
+                if (!shootingState) {
+                    shootMotor.setVelocity(farLaunch);
+                    shootingState = true;
+                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
+                } else {
+                    shootMotor.setVelocity(closeLaunch);
+                    shootingState = false;
+                    gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
+                }
+
+ */
+            }
+        }
+    }
+
+
+
 
 
 
@@ -220,6 +231,4 @@ public class TeleOp extends LinearOpMode {
 
 
  */
-        }
-    }
-}
+

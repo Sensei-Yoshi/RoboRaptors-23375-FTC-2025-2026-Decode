@@ -27,7 +27,7 @@ public class PedroAuto extends OpMode {
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));// Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose pickup1Pose = new Pose(130, 81, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2Pose = new Pose(96, 61, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private final Pose pickup3Pose = new Pose(128, 61, Math.toRadians(0));
+    private final Pose pickup3Pose = new Pose(125, 61, Math.toRadians(0));
     private final Pose park = new Pose(113,74, Math.toRadians(0));
 
     private DcMotorEx shootMotor = null;
@@ -72,7 +72,7 @@ public class PedroAuto extends OpMode {
         /* This is our scorePickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         scorePickup2 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(40))
                 .build();
         /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup3 = follower.pathBuilder()
@@ -169,7 +169,7 @@ public class PedroAuto extends OpMode {
                 break;
             case 6:
                 if (!follower.isBusy()) {
-                    follower.followPath(scorePickup2);
+                    follower.followPath(scorePickup2, 0.8, true);
                     setPathState(7);
                 }
                 break;

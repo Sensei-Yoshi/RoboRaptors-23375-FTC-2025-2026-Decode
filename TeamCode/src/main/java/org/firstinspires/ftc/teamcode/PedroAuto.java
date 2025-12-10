@@ -18,19 +18,21 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Autonomous(name = "Pedro Auto Red")
 public class PedroAuto extends OpMode {
-    final double pushServoDown = 0.88;
+    final double pushServoDown = 0.89;
     final double pushServoUp = 0.3;
     final double blockServoDown = 0.83;
     final double blockServoUp = 0.3;
+    final double hoodServoClose = 0.48;
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(89, 89, Math.toRadians(45));
+    private final Pose scorePose = new Pose(100, 100, Math.toRadians(45));
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));// Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
-    private final Pose pickup1Pose = new Pose(130, 81, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup2Pose = new Pose(96, 61, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private final Pose pickup3Pose = new Pose(125, 61, Math.toRadians(0));
+    private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2Pose = new Pose(96, 62, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0));
     private final Pose park = new Pose(113,74, Math.toRadians(0));
 
     private DcMotorEx shootMotor = null;
+    private Servo hoodServo = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
     private DcMotorEx intakeMotor = null;
@@ -50,7 +52,7 @@ public class PedroAuto extends OpMode {
                 .build();
         grabPickup1 = follower.pathBuilder()
                 //turnPose
-                .addPath(new BezierLine(scorePose, pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)),  pickup1Pose))
                 //ConstantHeading
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
@@ -96,23 +98,24 @@ public class PedroAuto extends OpMode {
         switch (pathState) {
             case 0:
                 blockServo.setPosition(blockServoUp);
-                shootMotor.setVelocity(1100);
+                shootMotor.setVelocity(1110);
                 follower.followPath(scorePreload, true);
                 setPathState(1);
                 break;
             case 1:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
                     intakeMotor.setPower(-1);
-                    blockServo.setPosition(0.3);
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                         pushServo.setPosition(pushServoDown);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
                     telemetry.update();
                     pathTimer.resetTimer();
@@ -135,14 +138,15 @@ public class PedroAuto extends OpMode {
                 /* This case checks the robot's position and will wait until the robot position is close (1 inch away) from the scorePose's position */
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
                     intakeMotor.setPower(-1);
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                         pushServo.setPosition(pushServoDown);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
                     /* Score Sample */
                     /* Since this is a pathChain, we can have Pedro hold the end point while we are grabbing the sample */
@@ -178,14 +182,15 @@ public class PedroAuto extends OpMode {
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     intakeMotor.setPower(-1);
-                    blockServo.setPosition(0.3);
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                         pushServo.setPosition(pushServoDown);
                         pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
                     telemetry.update();
                     pathTimer.resetTimer();
@@ -235,12 +240,13 @@ public class PedroAuto extends OpMode {
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
+        hoodServo = hardwareMap.get(Servo.class, "hoodServo");
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
-
+        hoodServo.setPosition(hoodServoClose);
         buildPaths();
         follower.setStartingPose(startPose);
     }

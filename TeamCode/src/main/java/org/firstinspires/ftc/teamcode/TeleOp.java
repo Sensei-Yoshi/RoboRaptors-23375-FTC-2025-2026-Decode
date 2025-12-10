@@ -24,14 +24,20 @@ public class TeleOp extends LinearOpMode {
     private DcMotor rightBackDrive = null;
     private DcMotorEx intakeMotor = null;
     private DcMotorEx shootMotor = null;
+    //private DcMotor liftMotor = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
+    private Servo hoodServo = null;
     final double closeLaunch = 1050; //in ticks/second for the close goal.
-    final double farLaunch = 1350;
-    final double pushServoDown = 0.88;
+    final double farLaunch = 1580;
+    final double pushServoDown = 0.9;
     final double pushServoUp = 0.3;
-    final double blockServoDown = 0.83;
+    final double blockServoDown = 0.81;
     final double blockServoUp = 0.3;
+    final double hoodServoClose = 0.48;
+    final double hoodServoFar = 0.52;
+
+
 
     @Override
     public void runOpMode() {
@@ -42,8 +48,10 @@ public class TeleOp extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+        //liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
+        hoodServo = hardwareMap.get(Servo.class, "hoodServo");
 
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -66,10 +74,12 @@ public class TeleOp extends LinearOpMode {
         int intakeOn = 0, shots = 0;
         pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
+        hoodServo.setPosition(hoodServoClose); //0.53
         waitForStart();
-        boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true;
+        boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true, isWaitingBeforeFirstShot = false;
         shootMotor.setVelocity(closeLaunch);
         gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
+
 
 
         while (opModeIsActive()) {
@@ -83,10 +93,10 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            leftFrontDrive.setPower(leftFrontPower);
-            leftBackDrive.setPower(leftBackPower);
-            rightFrontDrive.setPower(rightFrontPower);
-            rightBackDrive.setPower(rightBackPower);
+           leftFrontDrive.setPower(leftFrontPower);
+           leftBackDrive.setPower(leftBackPower);
+           rightFrontDrive.setPower(rightFrontPower);
+          rightBackDrive.setPower(rightBackPower);
 
 
             if (gamepad1.circleWasPressed())
@@ -129,6 +139,7 @@ public class TeleOp extends LinearOpMode {
                     }
                 }
             }
+
             if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
                 isPushingManual = true;
                 pushTimer.reset();
@@ -145,10 +156,12 @@ public class TeleOp extends LinearOpMode {
 
             if (gamepad1.leftBumperWasPressed()) {
                 if (!shootingState) {
+                    hoodServo.setPosition(hoodServoFar);
                     shootMotor.setVelocity(farLaunch);
                     shootingState = true;
                     gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
                 } else {
+                    hoodServo.setPosition(hoodServoClose);
                     shootMotor.setVelocity(closeLaunch);
                     shootingState = false;
                     gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);

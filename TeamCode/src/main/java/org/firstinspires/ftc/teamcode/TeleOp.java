@@ -24,10 +24,10 @@ public class TeleOp extends LinearOpMode {
     private DcMotor rightBackDrive = null;
     private DcMotorEx intakeMotor = null;
     private DcMotorEx shootMotor = null;
-    //private DcMotor liftMotor = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
     private Servo hoodServo = null;
+    private Servo light = null;
     final double closeLaunch = 1050; //in ticks/second for the close goal.
     final double farLaunch = 1580;
     final double pushServoDown = 0.9;
@@ -48,10 +48,10 @@ public class TeleOp extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
-        //liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
+        light = hardwareMap.get(Servo.class, "light");
 
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -93,7 +93,9 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-           leftFrontDrive.setPower(leftFrontPower);
+
+
+         leftFrontDrive.setPower(leftFrontPower);
            leftBackDrive.setPower(leftBackPower);
            rightFrontDrive.setPower(rightFrontPower);
           rightBackDrive.setPower(rightBackPower);

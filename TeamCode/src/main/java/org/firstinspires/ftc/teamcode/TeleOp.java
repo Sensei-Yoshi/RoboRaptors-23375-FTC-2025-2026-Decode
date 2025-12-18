@@ -24,17 +24,22 @@ public class TeleOp extends LinearOpMode {
     private DcMotor rightBackDrive = null;
     private DcMotorEx intakeMotor = null;
     private DcMotorEx shootMotor = null;
+    private DcMotor liftMotor = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
     private Servo hoodServo = null;
     private Servo light = null;
-    final double closeLaunch = 1050; //in ticks/second for the close goal.
+    //Changeable:
+    final double closeLaunch = 1050; //Changes how fast flywheel moves
     final double farLaunch = 1580;
-    final double pushServoDown = 0.9;
+
+    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
     final double pushServoUp = 0.3;
-    final double blockServoDown = 0.81;
+
+    final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
     final double blockServoUp = 0.3;
-    final double hoodServoClose = 0.48;
+
+    final double hoodServoClose = 0.48; //== <0.48 == less curved shot and >0.48 == direct shot
     final double hoodServoFar = 0.52;
 
 
@@ -51,7 +56,9 @@ public class TeleOp extends LinearOpMode {
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
+        //liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
         light = hardwareMap.get(Servo.class, "light");
+
 
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -59,6 +66,7 @@ public class TeleOp extends LinearOpMode {
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
 
 
@@ -68,7 +76,6 @@ public class TeleOp extends LinearOpMode {
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-
         telemetry.addData("Status", "Initialized");
         telemetry.update();
         int intakeOn = 0, shots = 0;
@@ -76,15 +83,17 @@ public class TeleOp extends LinearOpMode {
         blockServo.setPosition(blockServoDown);
         hoodServo.setPosition(hoodServoClose); //0.53
         waitForStart();
+        boolean shooterOverride = false;
+        double lastShooterVelocity = closeLaunch;
         boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true, isWaitingBeforeFirstShot = false;
         shootMotor.setVelocity(closeLaunch);
-        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
+        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS); //set color of gamepad
 
 
 
         while (opModeIsActive()) {
             double max;
-            double axial = -gamepad1.left_stick_y;
+            double axial = -gamepad1.left_stick_y; // gamepad stick values
             double lateral = gamepad1.left_stick_x;
             double yaw = gamepad1.right_stick_x;
             double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
@@ -93,11 +102,13 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
+           // liftMotor.setPower(gamepad1.left_stick_y);
+
 
 
          leftFrontDrive.setPower(leftFrontPower);
-           leftBackDrive.setPower(leftBackPower);
-           rightFrontDrive.setPower(rightFrontPower);
+          leftBackDrive.setPower(leftBackPower);
+        rightFrontDrive.setPower(rightFrontPower);
           rightBackDrive.setPower(rightBackPower);
 
 
@@ -111,13 +122,36 @@ public class TeleOp extends LinearOpMode {
                     intakeOn = 0;
                 else
                     intakeOn = 2;
-            if (intakeOn == 1)
+            if (intakeOn == 1) {
                 intakeMotor.setPower(-1);
-            else if (intakeOn == 2)
+                light.setPosition(0.8);
+            }
+            else if (intakeOn == 2) {
                 intakeMotor.setPower(1);
-            else
+            }
+            else {
                 intakeMotor.setPower(0);
+                light.setPosition(0);
+            }
 
+
+            if (gamepad1.aWasPressed()) {
+                if (!shooterOverride) {
+                    lastShooterVelocity = shootMotor.getVelocity();
+                    shootMotor.setVelocity(0);
+                    shooterOverride = true;
+                    gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
+                } else {
+                    shootMotor.setVelocity(lastShooterVelocity);
+                    shooterOverride = false;
+
+                    if (shootingState)
+                        gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
+                    else
+                        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
+                }
+            }
+            //Rapid Shooting: Starts
             if (gamepad1.right_trigger > 0.3 && !isPushing && shots == 0) {
                 shots = 3;
                 blockServo.setPosition(blockServoUp);
@@ -129,7 +163,7 @@ public class TeleOp extends LinearOpMode {
             }
             if (isPushing) {
                 double t = pushTimer1.milliseconds();
-                if (t <= 150) {
+                if (t <= 150) { //delay time
                     pushServo.setPosition(pushServoUp);
                 } else if (t <= 300) {
                     pushServo.setPosition(pushServoDown);
@@ -141,6 +175,7 @@ public class TeleOp extends LinearOpMode {
                     }
                 }
             }
+            //Ends
 
             if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
                 isPushingManual = true;
@@ -169,34 +204,10 @@ public class TeleOp extends LinearOpMode {
                     gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
                 }
             }
-/*
-            if (gamepad1.xWasPressed() && flyWheelOn){
-                shootMotor.setVelocity(0);
-            }
-            else{
-                if (!shootingState) {
-                    shootMotor.setVelocity(farLaunch);
-                    shootingState = true;
-                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
-                } else {
-                    shootMotor.setVelocity(closeLaunch);
-                    shootingState = false;
-                    gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
-                }
 
- */
             }
         }
     }
-
-
-
-
-
-
-
-
-
 /*
             if (gamepad1.left_bumper){
                 if (!shootingState){

@@ -16,7 +16,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "Pedro Auto Blue")
+@Autonomous(name = "9 Ball Blue")
 public class PedroAutoBlue extends OpMode {
     final double pushServoDown = 0.89;
     final double pushServoUp = 0.3;
@@ -24,7 +24,7 @@ public class PedroAutoBlue extends OpMode {
     final double blockServoUp = 0.3;
     final double hoodServoClose = 0.48;
     private Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror(); // Start Pose of our robot.
-    private Pose scorePose = new Pose(100, 100, Math.toRadians(45)).mirror();
+    private Pose scorePose = new Pose(103, 103, Math.toRadians(45)).mirror();
     private Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();// Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
     private Pose pickup2Pose = new Pose(96, 62, Math.toRadians(0)).mirror(); // Middle (Second Set) of Artifacts from the Spike Mark.

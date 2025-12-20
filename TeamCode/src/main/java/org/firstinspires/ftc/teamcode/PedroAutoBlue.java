@@ -24,10 +24,10 @@ public class PedroAutoBlue extends OpMode {
     final double blockServoUp = 0.3;
     final double hoodServoClose = 0.48;
     private Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror(); // Start Pose of our robot.
-    private Pose scorePose = new Pose(103, 103, Math.toRadians(45)).mirror();
+    private Pose scorePose = new Pose(103, 103, Math.toRadians(40)).mirror();
     private Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();// Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
-    private Pose pickup2Pose = new Pose(96, 62, Math.toRadians(0)).mirror(); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private Pose pickup2Pose = new Pose(90, 62, Math.toRadians(0)).mirror(); // Middle (Second Set) of Artifacts from the Spike Mark.
     private Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
     private Pose park = new Pose(113,74, Math.toRadians(0)).mirror();
 
@@ -60,7 +60,7 @@ public class PedroAutoBlue extends OpMode {
         /* This is our scorePickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         scorePickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup1Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), Math.toRadians(135))
+                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), Math.toRadians(138))
                 .build();
         /* This is our grabPickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup2 = follower.pathBuilder()
@@ -75,7 +75,7 @@ public class PedroAutoBlue extends OpMode {
         /* This is our scorePickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         scorePickup2 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(135))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(138))
                 .build();
         /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup3 = follower.pathBuilder()

@@ -137,18 +137,20 @@ public class TeleOp extends LinearOpMode {
 
             if (gamepad1.aWasPressed()) {
                 if (!shooterOverride) {
-                    lastShooterVelocity = shootMotor.getVelocity();
+                    // Turn shooter OFF
                     shootMotor.setVelocity(0);
                     shooterOverride = true;
                     gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
                 } else {
-                    shootMotor.setVelocity(lastShooterVelocity);
+                    // Turn shooter ON to previous mode
+                    if (shootingState) {
+                        shootMotor.setVelocity(farLaunch);
+                        gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
+                    } else {
+                        shootMotor.setVelocity(closeLaunch);
+                        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS); // red
+                    }
                     shooterOverride = false;
-
-                    if (shootingState)
-                        gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS);
-                    else
-                        gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS);
                 }
             }
             //Rapid Shooting: Starts

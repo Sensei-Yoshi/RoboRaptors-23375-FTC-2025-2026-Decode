@@ -59,7 +59,7 @@ public class FiveteenBallAutoRed extends OpMode {
      */
 
     private final Pose park = new Pose(113,74, Math.toRadians(0));
-    private final Pose gatePose = new Pose(133,63, Math.toRadians(35));
+    private final Pose gatePose = new Pose(133,64.5, Math.toRadians(35));
 
     private DcMotorEx shootMotor = null;
     private Servo hoodServo = null;
@@ -121,7 +121,7 @@ public class FiveteenBallAutoRed extends OpMode {
                 .build();
         /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup3 = follower.pathBuilder()
-                .addPath(new BezierCurve(scorePose, (new Pose(76, 29)), pickup5Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(65, 29)), pickup5Pose))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup4Pose.getHeading())
                 .build();
         runPickup2 = follower.pathBuilder() //gets same 3 balls
@@ -164,11 +164,11 @@ public class FiveteenBallAutoRed extends OpMode {
             case 1:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.75) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.9) {
                     }
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
                     }
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
@@ -200,7 +200,7 @@ public class FiveteenBallAutoRed extends OpMode {
                     pathTimer.resetTimer();
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -229,7 +229,7 @@ public class FiveteenBallAutoRed extends OpMode {
                     pathTimer.resetTimer();
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
                     }
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
@@ -259,7 +259,7 @@ public class FiveteenBallAutoRed extends OpMode {
             case 7:
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
                     }
                     intakeMotor.setPower(-1);
                     for (int x = 0; x < 3; x++) {
@@ -289,7 +289,7 @@ public class FiveteenBallAutoRed extends OpMode {
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();

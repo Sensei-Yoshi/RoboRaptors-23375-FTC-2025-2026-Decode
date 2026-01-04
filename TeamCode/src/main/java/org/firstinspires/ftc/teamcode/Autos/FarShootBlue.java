@@ -1,9 +1,7 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.Autos;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
@@ -16,8 +14,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "FarShoot Red")
-public class FarShootRed extends OpMode {
+@Autonomous(name = "FarShoot Blue")
+public class FarShootBlue extends OpMode {
     final double pushServoDown = 0.89;
     final double pushServoUp = 0.3;
     final double blockServoDown = 0.83;
@@ -28,8 +26,8 @@ public class FarShootRed extends OpMode {
 
 
     //Change:
-    private final Pose startPose = new Pose(87, 8, Math.toRadians(90)); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(84.2, 9.5, Math.toRadians(60)); //100,100
+    private final Pose startPose = new Pose(87, 8, Math.toRadians(90)).mirror(); // Start Pose of our robot.
+    private final Pose scorePose = new Pose(84.2, 9.5, Math.toRadians(60)).mirror(); //100,100
     /*
     - keep x and y same
      -increase or decrease x and y by 2
@@ -55,7 +53,7 @@ public class FarShootRed extends OpMode {
     not aligned with balls = change y
      */
 
-    private final Pose park = new Pose(129,8, Math.toRadians(0));
+    private final Pose park = new Pose(129,8, Math.toRadians(0)).mirror();
 
     private DcMotorEx shootMotor = null;
     private Servo hoodServo = null;
@@ -192,4 +190,5 @@ public class FarShootRed extends OpMode {
     public void stop() {
     }
 }
+
 

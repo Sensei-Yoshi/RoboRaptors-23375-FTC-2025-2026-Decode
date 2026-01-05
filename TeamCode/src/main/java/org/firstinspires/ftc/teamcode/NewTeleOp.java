@@ -55,7 +55,7 @@ public class NewTeleOp extends LinearOpMode {
 
     int intakeOn = 0;
     int shots = 0;
-    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
+    final double pushServoDown = 0.83; //change if too close to ground: <0.9 == up and >0.9 = down
     final double pushServoUp = 0.3;
 
     final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
@@ -139,7 +139,7 @@ public class NewTeleOp extends LinearOpMode {
             if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE)
                 autoState = AutoState.AIMING;
 
-            if (autoState == AutoState.AIMING || autoState == AutoState.SPINNING) {
+            if (autoState == AutoState.AIMING) {
                 aimPid.updatePosition(getTx());
                 aimPid.setTargetPosition(0);
                 yaw = -aimPid.run();
@@ -162,12 +162,10 @@ public class NewTeleOp extends LinearOpMode {
             shootMotor.setVelocity(targetRPM);
             hoodServo.setPosition(controlPointsHood.get(distance));
 
-            shooterReady = Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance;
-            aimReady = Math.abs(getTx()) < aimTolerance;
 
             switch (autoState) {
-                case AIMING: if (aimReady) autoState = AutoState.SPINNING; break;
-                case SPINNING: if (shooterReady) autoState = AutoState.FIRING; break;
+                case AIMING: if (Math.abs(getTx()) < aimTolerance) autoState = AutoState.SPINNING; break;
+                case SPINNING: if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance) autoState = AutoState.FIRING; break;
                 case FIRING:
                     if (!firingArmed) {
                         firingArmed = true;
@@ -227,7 +225,7 @@ public class NewTeleOp extends LinearOpMode {
     }
 
 
-
+    // ───── Distance Functions ─────
     public double distanceFromTag(double tagID) {
         List<LLResultTypes.FiducialResult> r = limelight.getLatestResult().getFiducialResults();
         if (r.isEmpty()) {
@@ -267,12 +265,12 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(40, 1130);
         controlPointsRPM.add(45, 1180);
         controlPointsRPM.add(50, 1200);
-        controlPointsRPM.add(55, 1290);
-        controlPointsRPM.add(60, 1290);
-        controlPointsRPM.add(65, 1290);
-        controlPointsRPM.add(70, 1320);
-        controlPointsRPM.add(75, 1440);
-        controlPointsRPM.add(80, 1510);
+        controlPointsRPM.add(55, 1230);
+        controlPointsRPM.add(60, 1230);
+        controlPointsRPM.add(65, 1230);
+        controlPointsRPM.add(70, 1270);
+        controlPointsRPM.add(75, 1400);
+        controlPointsRPM.add(80, 1490);
         controlPointsRPM.createLUT();
 
     }

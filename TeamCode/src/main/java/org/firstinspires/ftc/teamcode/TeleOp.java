@@ -33,7 +33,7 @@ public class TeleOp extends LinearOpMode {
     final double closeLaunch = 1050; //Changes how fast flywheel moves
     final double farLaunch = 1580;
 
-    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
+    final double pushServoDown = 0.85; //change if too close to ground: <0.9 == up and >0.9 = down
     final double pushServoUp = 0.3;
 
     final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
@@ -102,14 +102,14 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            liftMotor.setPower(gamepad1.left_stick_y);
+           // liftMotor.setPower(gamepad1.left_stick_y);
 
 
 
-        // leftFrontDrive.setPower(leftFrontPower);
-       //   leftBackDrive.setPower(leftBackPower);
-      //  rightFrontDrive.setPower(rightFrontPower);
-       //   rightBackDrive.setPower(rightBackPower);
+        leftFrontDrive.setPower(leftFrontPower);
+         leftBackDrive.setPower(leftBackPower);
+       rightFrontDrive.setPower(rightFrontPower);
+       rightBackDrive.setPower(rightBackPower);
 
 
             if (gamepad1.circleWasPressed())

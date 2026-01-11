@@ -102,7 +102,7 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-           // liftMotor.setPower(gamepad1.left_stick_y);
+            //liftMotor.setPower(gamepad1.left_stick_y);
 
 
 

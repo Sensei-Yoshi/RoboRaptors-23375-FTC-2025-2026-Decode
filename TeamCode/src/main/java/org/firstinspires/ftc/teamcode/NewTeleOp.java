@@ -1,38 +1,34 @@
 package org.firstinspires.ftc.teamcode;
-import com.acmerobotics.dashboard.FtcDashboard;
+
 import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.bylazar.panels.Panels;
-import com.bylazar.telemetry.PanelsTelemetry;
+import com.arcrobotics.ftclib.util.InterpLUT;
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.control.PIDFController;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import com.bylazar.configurables.annotations.Configurable;
-import com.bylazar.configurables.annotations.Sorter;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import com.bylazar.telemetry.TelemetryManager;
-import com.bylazar.telemetry.JoinedTelemetry;
 
 import java.util.List;
-import com.arcrobotics.ftclib.util.InterpLUT;
+
 @Config
 @TeleOp(name="NewTeleOp", group="Tuning")
 public class NewTeleOp extends LinearOpMode {
     enum AutoState { IDLE, AIMING, SPINNING, FIRING }
+    private PIDFController aimPid;
     AutoState autoState = AutoState.IDLE;
     private ElapsedTime pushTimer1 = new ElapsedTime();
-    private static com.pedropathing.control.PIDFController aimPid;
+    ElapsedTime fireDelayTimer = new ElapsedTime();
+    boolean fireDelayActive = false;
+
     DcMotorEx shootMotor, intakeMotor;
     Servo hoodServo, pushServo, blockServo, light;
     InterpLUT controlPointsRPM = new InterpLUT();
@@ -56,18 +52,22 @@ public class NewTeleOp extends LinearOpMode {
     int intakeOn = 0;
     int shots = 0;
     final double pushServoDown = 0.83; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.3;
+    final double pushServoUp = 0.25;
 
     final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
     final double blockServoUp = 0.3;
 
-    public static double Kp = 0.05;
-    public static double Kd = 0.0045;
-    public static double Kf = 0.025;
+    public static double Kp = 0.025;
+    public static double Ki = 0.0;
+    public static double Kd = 0.001;
+    public static double Kf = 0.15;
     double targetPose = 0;
     public static double rpmTolerance = 150;
-    public static double aimTolerance = 2.5;
+    public static double aimTolerance = 1.5;
     double distance;
+    ElapsedTime blockDelayTimer = new ElapsedTime();
+    boolean blockDelayActive = false;
+    final double BLOCK_OPEN_DELAY = 150;
 
 
     @Override
@@ -95,27 +95,28 @@ public class NewTeleOp extends LinearOpMode {
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-
         limelight.start();
         limelight.pipelineSwitch(0);
 
         shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new com.qualcomm.robotcore.hardware.PIDFCoefficients(300, 0, 0, 10));
         hoodServo.setPosition(hoodPos);
         pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
         createHoodControlPoints();
         createRPMControlPoints();
 
-        aimPid = new PIDFController(new com.pedropathing.control.PIDFCoefficients(0.05, 0, 0.009, 0));
+        aimPid = new PIDFController(new PIDFCoefficients(Kp,0, Kd, Kf));
         waitForStart();
         boolean autoShootActive = false;
         boolean firingArmed = false;
 
         double yaw = 0;
+
         while (opModeIsActive()) {
 
-            if (gamepad1.circleWasPressed())
+
+        /*    if (gamepad1.circleWasPressed())
                 if (intakeOn == 1)
                     intakeOn = 0;
                 else
@@ -131,49 +132,78 @@ public class NewTeleOp extends LinearOpMode {
                 intakeMotor.setPower(1);
             } else {
                 intakeMotor.setPower(0);
-            }
+            }*/
             double max;
             double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
             yaw = gamepad1.right_stick_x;
+            //aimPid.setCoefficients(new PIDFCoefficients(0.025,0,0.001, 0.15));
+
             if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE)
                 autoState = AutoState.AIMING;
 
             if (autoState == AutoState.AIMING) {
-                aimPid.updatePosition(getTx());
-                aimPid.setTargetPosition(0);
-                yaw = -aimPid.run();
-                axial = 0; lateral = 0;
+                double error = getTx();
+                aimPid.updateError(error);
+                aimPid.updateFeedForwardInput(Math.signum(error));
+                yaw = aimPid.run();
+                if (Math.abs(error) < 2.0) {
+                    autoState = AutoState.SPINNING;
+                    axial = 0;
+                    lateral = 0;
+                }
             }
+
             double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
             double leftFrontPower = (axial + lateral + yaw) / denominator;
             double rightFrontPower = (axial - lateral - yaw) / denominator;
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-
             leftFrontDrive.setPower(leftFrontPower);
             leftBackDrive.setPower(leftBackPower);
             rightFrontDrive.setPower(rightFrontPower);
             rightBackDrive.setPower(rightBackPower);
-
+/*
             distance = clampDistance(distanceFromRed());
+
             double targetRPM = controlPointsRPM.get(distance);
             shootMotor.setVelocity(targetRPM);
             hoodServo.setPosition(controlPointsHood.get(distance));
 
-
             switch (autoState) {
-                case AIMING: if (Math.abs(getTx()) < aimTolerance) autoState = AutoState.SPINNING; break;
-                case SPINNING: if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance) autoState = AutoState.FIRING; break;
+                case SPINNING:
+                    if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance)
+                        //autoState = AutoState.FIRING;
+                    break;
                 case FIRING:
+                    if (!fireDelayActive) {
+                        fireDelayActive = true;
+                        fireDelayTimer.reset();
+                        break;
+                    }
+                    if (fireDelayTimer.seconds() < 0.3) break;
+
+                    // Step 2 – Open blocker and wait before pushing
+                    if (!blockDelayActive) {
+                        blockServo.setPosition(blockServoUp);
+                        blockDelayTimer.reset();
+                        blockDelayActive = true;
+                        break;
+                    }
+
+                    if (blockDelayTimer.milliseconds() < BLOCK_OPEN_DELAY) break;
+
+                    // Step 3 – Arm firing
                     if (!firingArmed) {
                         firingArmed = true;
                         shots = 3;
-                        blockServo.setPosition(blockServoUp);
                     }
+
                     if (shots == 0) {
                         firingArmed = false;
+                        fireDelayActive = false;
+                        blockDelayActive = false;
                         autoState = AutoState.IDLE;
                     }
                     break;
@@ -187,40 +217,32 @@ public class NewTeleOp extends LinearOpMode {
 
             if (isPushing) {
                 double t = pushTimer1.milliseconds();
-                if (t <= 150) pushServo.setPosition(pushServoUp);
-                else if (t <= 300) pushServo.setPosition(pushServoDown);
-                else {
+                if (t <= 150) { //delay time
+                    pushServo.setPosition(pushServoUp);
+                } else if (t <= 300) {
+                    pushServo.setPosition(pushServoDown);
+                } else {
                     isPushing = false;
                     shots--;
-                    if (shots == 0) blockServo.setPosition(blockServoDown);
+                    if (shots == 0) {
+                        blockServo.setPosition(blockServoDown);
+                    }
                 }
             }
 
+ */
 
-            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
-                isPushingManual = true;
-                pushTimer.reset();
-                pushServo.setPosition(pushServoUp);
-                blockServo.setPosition(blockServoUp);
-            }
-            if (isPushingManual) {
-                if (pushTimer.milliseconds() > 400) {
-                    pushServo.setPosition(pushServoDown);
-                    blockServo.setPosition(blockServoDown);
-                    isPushingManual = false;
-                }
-            }
-
-            telemetry.addData("Aim Ready", aimReady);
-            telemetry.addData("Shooter Ready", shooterReady);
+            telemetry.addData("Kp", aimPid.P());
+            telemetry.addData("KF", aimPid.F());
+            telemetry.addData("Kd", aimPid.D());
+            telemetry.addData("State", autoState);
+            telemetry.addData("Yaw", yaw);
             telemetry.addData("Distance (in)", "%.1f", distance);
-            telemetry.addData("Target Velocity", targetRPM);
+           // telemetry.addData("Target Velocity", targetRPM);
             telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
             telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
             telemetry.addData("TX", "%.3f", getTx());
             telemetry.update();
-
-
         }
     }
 
@@ -296,8 +318,7 @@ public class NewTeleOp extends LinearOpMode {
     double getTx() {
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
-            double tx = result.getTx();
-            return tx;
+            return result.getTx();
         } else
             return 0;
     }

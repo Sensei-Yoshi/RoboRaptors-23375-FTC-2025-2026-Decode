@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.config.Config;
+import com.arcrobotics.ftclib.controller.PIDFController;
 import com.arcrobotics.ftclib.util.InterpLUT;
 import com.pedropathing.control.PIDFCoefficients;
-import com.pedropathing.control.PIDFController;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -22,9 +22,10 @@ import java.util.List;
 @Config
 @TeleOp(name="NewTeleOp", group="Tuning")
 public class NewTeleOp extends LinearOpMode {
-    enum AutoState { IDLE, AIMING, SPINNING, FIRING }
-    private PIDFController aimPid;
-    AutoState autoState = AutoState.IDLE;
+
+    private enum AutoState { IDLE, AIMING, SPINNING, FIRING }
+    private com.arcrobotics.ftclib.controller.PIDFController aimPid;
+    private AutoState autoState = AutoState.IDLE;
     private ElapsedTime pushTimer1 = new ElapsedTime();
     ElapsedTime fireDelayTimer = new ElapsedTime();
     boolean fireDelayActive = false;
@@ -51,15 +52,15 @@ public class NewTeleOp extends LinearOpMode {
 
     int intakeOn = 0;
     int shots = 0;
-    final double pushServoDown = 0.83; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.25;
+    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
+    final double pushServoUp = 0.5;
 
-    final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
-    final double blockServoUp = 0.3;
+    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoUp = 0.25;
 
-    public static double Kp = 0.025;
+    public static double Kp = 0.03;
     public static double Ki = 0.0;
-    public static double Kd = 0.001;
+    public static double Kd = 0.003;
     public static double Kf = 0.15;
     double targetPose = 0;
     public static double rpmTolerance = 150;
@@ -67,7 +68,7 @@ public class NewTeleOp extends LinearOpMode {
     double distance;
     ElapsedTime blockDelayTimer = new ElapsedTime();
     boolean blockDelayActive = false;
-    final double BLOCK_OPEN_DELAY = 150;
+    final double BLOCK_OPEN_DELAY = 25;
 
 
     @Override
@@ -106,7 +107,9 @@ public class NewTeleOp extends LinearOpMode {
         createHoodControlPoints();
         createRPMControlPoints();
 
-        aimPid = new PIDFController(new PIDFCoefficients(Kp,0, Kd, Kf));
+        aimPid = new PIDFController(Kp, 0,Kd,0);
+        aimPid.setTolerance(1.5);
+        aimPid.setSetPoint(0);
         waitForStart();
         boolean autoShootActive = false;
         boolean firingArmed = false;
@@ -116,7 +119,7 @@ public class NewTeleOp extends LinearOpMode {
         while (opModeIsActive()) {
 
 
-        /*    if (gamepad1.circleWasPressed())
+           if (gamepad1.circleWasPressed())
                 if (intakeOn == 1)
                     intakeOn = 0;
                 else
@@ -132,7 +135,7 @@ public class NewTeleOp extends LinearOpMode {
                 intakeMotor.setPower(1);
             } else {
                 intakeMotor.setPower(0);
-            }*/
+            }
             double max;
             double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
@@ -144,10 +147,11 @@ public class NewTeleOp extends LinearOpMode {
 
             if (autoState == AutoState.AIMING) {
                 double error = getTx();
-                aimPid.updateError(error);
-                aimPid.updateFeedForwardInput(Math.signum(error));
-                yaw = aimPid.run();
-                if (Math.abs(error) < 2.0) {
+
+                //aimPid.updateFeedForwardInput(Math.signum(error));
+
+                yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));;
+                if (aimPid.atSetPoint()) {
                     autoState = AutoState.SPINNING;
                     axial = 0;
                     lateral = 0;
@@ -164,25 +168,30 @@ public class NewTeleOp extends LinearOpMode {
             leftBackDrive.setPower(leftBackPower);
             rightFrontDrive.setPower(rightFrontPower);
             rightBackDrive.setPower(rightBackPower);
-/*
+
+
             distance = clampDistance(distanceFromRed());
 
             double targetRPM = controlPointsRPM.get(distance);
+
             shootMotor.setVelocity(targetRPM);
             hoodServo.setPosition(controlPointsHood.get(distance));
 
             switch (autoState) {
                 case SPINNING:
                     if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance)
-                        //autoState = AutoState.FIRING;
+                        autoState = AutoState.FIRING;
                     break;
                 case FIRING:
+                    /*
                     if (!fireDelayActive) {
                         fireDelayActive = true;
                         fireDelayTimer.reset();
                         break;
                     }
                     if (fireDelayTimer.seconds() < 0.3) break;
+
+                     */
 
                     // Step 2 – Open blocker and wait before pushing
                     if (!blockDelayActive) {
@@ -202,7 +211,7 @@ public class NewTeleOp extends LinearOpMode {
 
                     if (shots == 0) {
                         firingArmed = false;
-                        fireDelayActive = false;
+                        //fireDelayActive = false;
                         blockDelayActive = false;
                         autoState = AutoState.IDLE;
                     }
@@ -230,11 +239,13 @@ public class NewTeleOp extends LinearOpMode {
                 }
             }
 
- */
 
-            telemetry.addData("Kp", aimPid.P());
-            telemetry.addData("KF", aimPid.F());
-            telemetry.addData("Kd", aimPid.D());
+
+
+
+            telemetry.addData("Kp", aimPid.getP());
+            telemetry.addData("KF", aimPid.getF());
+            telemetry.addData("Kd", aimPid.getD());
             telemetry.addData("State", autoState);
             telemetry.addData("Yaw", yaw);
             telemetry.addData("Distance (in)", "%.1f", distance);
@@ -248,7 +259,7 @@ public class NewTeleOp extends LinearOpMode {
 
 
     // ───── Distance Functions ─────
-    public double distanceFromTag(double tagID) {
+    private double distanceFromTag(double tagID) {
         List<LLResultTypes.FiducialResult> r = limelight.getLatestResult().getFiducialResults();
         if (r.isEmpty()) {
             light.setPosition(0.277);
@@ -275,7 +286,7 @@ public class NewTeleOp extends LinearOpMode {
         return distance;
     }
 
-    public double distanceFromRed() {
+    private double distanceFromRed() {
         return distanceFromTag(24);
     }
 

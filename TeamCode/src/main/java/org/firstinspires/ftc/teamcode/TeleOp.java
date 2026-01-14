@@ -102,14 +102,14 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            //liftMotor.setPower(gamepad1.left_stick_y);
+            liftMotor.setPower(gamepad1.left_stick_y);
 
 
 
-        leftFrontDrive.setPower(leftFrontPower);
-         leftBackDrive.setPower(leftBackPower);
-       rightFrontDrive.setPower(rightFrontPower);
-       rightBackDrive.setPower(rightBackPower);
+      //  leftFrontDrive.setPower(leftFrontPower);
+       //  leftBackDrive.setPower(leftBackPower);
+      // rightFrontDrive.setPower(rightFrontPower);
+      // rightBackDrive.setPower(rightBackPower);
 
 
             if (gamepad1.circleWasPressed())

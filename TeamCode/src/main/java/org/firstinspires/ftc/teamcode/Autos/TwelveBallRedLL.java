@@ -29,23 +29,22 @@ import java.util.List;
 public class TwelveBallRedLL extends OpMode {
     private InterpLUT controlPointsRPM = new InterpLUT();
     private InterpLUT controlPointsHood = new InterpLUT();
-    final double pushServoDown = 0.89;
-    final double pushServoUp = 0.3;
-    final double blockServoDown = 0.83;
-    final double blockServoUp = 0.3;
+    final double pushServoDown = 0.9;
+    final double pushServoUp = 0.5;
+    final double blockServoDown = 0.84;
+    final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
     private PIDFController aimPid;
 
-    private static final double AIM_KP = 0.03;
+    private static final double AIM_KP = 0.025;
     private static final double AIM_KD = 0.003;
     private static final double AIM_KF = 0.15;
     private static final double AIM_TOLERANCE = 1.5;
     private static final double RPM_TOLERANCE = 150;
     private static final double MAX_ALIGN_TIME = 3.0;
 
-    //Change:
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(45));
+    private final Pose scorePose = new Pose(101, 103, Math.toRadians(45));
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0));
     private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0));
@@ -53,7 +52,7 @@ public class TwelveBallRedLL extends OpMode {
     private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0));
     private final Pose pickup5Pose = new Pose(126, 40, Math.toRadians(0));
     private final Pose park = new Pose(113, 74, Math.toRadians(0));
-    private final Pose gatePose = new Pose(128, 75, Math.toRadians(0));
+    private final Pose gatePose = new Pose(128, 77, Math.toRadians(0));
 
     private DcMotor leftFrontDrive = null;
     private DcMotor leftBackDrive = null;
@@ -129,73 +128,73 @@ public class TwelveBallRedLL extends OpMode {
                 .build();
         scorePickup3 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup5Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(40))
+                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(42))
                 .build();
     }
 
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                // Move to score position
-                blockServo.setPosition(blockServoUp);
+                spinUpShooter();
                 follower.followPath(scorePreload, true);
                 setPathState(1);
                 break;
 
             case 1:
-                // Wait for robot to reach score position
+                // SHOOTING CYCLE 1 - Arrive at score position
                 if (!follower.isBusy()) {
                     if (AprilTagfound(24)) {
                         telemetry.addLine("AprilTag 24 found - starting alignment");
+                        telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(2);
                     } else {
                         telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.update();
+                        spinUpShooter();
                         setPathState(3);
                     }
                 }
                 break;
 
             case 2:
-                // Align with AprilTag and spin up shooter
-                boolean aligned = autoAimAndSpinUp();
+                // SHOOTING CYCLE 1 - Aim only
+                boolean aimAligned = autoAim();
+                spinUpShooter();
 
-                telemetry.addData("Aligning", "Time: %.2f s", alignTimer.getElapsedTimeSeconds());
-                telemetry.addData("Tx Error", getTx());
-                telemetry.addData("Shooter RPM", shootMotor.getVelocity());
-                telemetry.addData("Aligned", aligned);
+                if (aimAligned) {
 
-                if (aligned) {
-                    telemetry.addLine("Alignment complete - ready to shoot");
                     stopDriveMotors();
                     setPathState(3);
                 } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
-                    telemetry.addLine("Alignment timeout - shooting anyway");
+
                     stopDriveMotors();
                     setPathState(3);
                 }
                 break;
 
             case 3:
-                // Shoot first 3 balls
+                // SHOOTING CYCLE 1 - Wait for shooter, then shoot
                 stopDriveMotors();
-                pathTimer.resetTimer();
-                while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
-                intakeMotor.setPower(-1);
-                blockServo.setPosition(blockServoUp);
-                while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                for (int x = 0; x < 3; x++) {
-                    pushServo.setPosition(pushServoUp);
+                spinUpShooter();
+                if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
+                    blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    pushServo.setPosition(pushServoDown);
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    for (int x = 0; x < 3; x++) {
+                        pushServo.setPosition(pushServoUp);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                        pushServo.setPosition(pushServoDown);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    }
+
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup1, 0.6, true);
+                    setPathState(4);
                 }
-                telemetry.update();
-                blockServo.setPosition(blockServoDown);
-                follower.followPath(grabPickup1, 0.6, true);
-                setPathState(4);
                 break;
 
             case 4:
@@ -217,45 +216,58 @@ public class TwelveBallRedLL extends OpMode {
                 break;
 
             case 6:
-                // Return to score position for second shooting
+                // SHOOTING CYCLE 2 - Arrive at score position
                 if (!follower.isBusy()) {
                     if (AprilTagfound(24)) {
+                        telemetry.addLine("AprilTag 24 found - starting alignment");
+                        telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(7);
                     } else {
+                        telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.update();
+                        spinUpShooter();
                         setPathState(8);
                     }
                 }
                 break;
 
             case 7:
-                // Align for second shooting
-                boolean aligned2 = autoAimAndSpinUp();
+                // SHOOTING CYCLE 2 - Aim only
+                boolean aimAligned2 = autoAim();
+                spinUpShooter();
 
-                if (aligned2 || alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
+                if (aimAligned2) {
+                    stopDriveMotors();
+                    setPathState(8);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
                     stopDriveMotors();
                     setPathState(8);
                 }
                 break;
 
             case 8:
-                // Shoot second 3 balls
+                // SHOOTING CYCLE 2 - Wait for shooter, then shoot
                 stopDriveMotors();
-                blockServo.setPosition(blockServoUp);
-                while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                intakeMotor.setPower(-1);
-                for (int x = 0; x < 3; x++) {
-                    pushServo.setPosition(pushServoUp);
+                spinUpShooter();
+                if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
+                    blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    pushServo.setPosition(pushServoDown);
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    for (int x = 0; x < 3; x++) {
+                        pushServo.setPosition(pushServoUp);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                        pushServo.setPosition(pushServoDown);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    }
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup2, true);
+                    setPathState(9);
                 }
-
-                follower.followPath(grabPickup2, true);
-                blockServo.setPosition(blockServoDown);
-                setPathState(9);
                 break;
 
             case 9:
@@ -282,47 +294,60 @@ public class TwelveBallRedLL extends OpMode {
                 break;
 
             case 12:
-                // Return to score position for third shooting
+                // SHOOTING CYCLE 3 - Arrive at score position
                 if (!follower.isBusy()) {
                     if (AprilTagfound(24)) {
+                        telemetry.addLine("AprilTag 24 found - starting alignment");
+                        telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(13);
                     } else {
+                        telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.update();
+                        spinUpShooter();
                         setPathState(14);
                     }
                 }
                 break;
 
             case 13:
-                // Align for third shooting
-                boolean aligned3 = autoAimAndSpinUp();
+                // SHOOTING CYCLE 3 - Aim only
+                boolean aimAligned3 = autoAim();
+                spinUpShooter();
 
-                if (aligned3 || alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
+                if (aimAligned3) {
+
+                    stopDriveMotors();
+                    setPathState(14);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
                     stopDriveMotors();
                     setPathState(14);
                 }
                 break;
 
             case 14:
-                // Shoot third 3 balls
+                // SHOOTING CYCLE 3 - Wait for shooter, then shoot
                 stopDriveMotors();
-                pathTimer.resetTimer();
-                while (pathTimer.getElapsedTimeSeconds() < 1) {}
-                intakeMotor.setPower(-1);
-                blockServo.setPosition(blockServoUp);
-                while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                for (int x = 0; x < 3; x++) {
-                    pushServo.setPosition(pushServoUp);
+                spinUpShooter();
+                if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
+                    blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    pushServo.setPosition(pushServoDown);
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    for (int x = 0; x < 3; x++) {
+                        pushServo.setPosition(pushServoUp);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                        pushServo.setPosition(pushServoDown);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    }
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup3, true);
+                    setPathState(15);
                 }
-                telemetry.update();
-                blockServo.setPosition(blockServoDown);
-                follower.followPath(grabPickup3, true);
-                setPathState(15);
                 break;
 
             case 15:
@@ -334,52 +359,63 @@ public class TwelveBallRedLL extends OpMode {
 
             case 16:
                 if (!follower.isBusy()) {
-                    follower.followPath(scorePickup3, 0.8, true);
+                    follower.followPath(scorePickup3, 0.9, true);
                     setPathState(17);
                 }
                 break;
 
             case 17:
-                // Return to score position for fourth shooting
+                // SHOOTING CYCLE 4 - Arrive at score position
                 if (!follower.isBusy()) {
                     if (AprilTagfound(24)) {
+
                         alignTimer.resetTimer();
                         setPathState(18);
                     } else {
+
+                        spinUpShooter();
                         setPathState(19);
                     }
                 }
                 break;
-
             case 18:
-                // Align for fourth shooting
-                boolean aligned4 = autoAimAndSpinUp();
+                // SHOOTING CYCLE 4 - Aim only
+                boolean aimAligned4 = autoAim();
+                spinUpShooter();
 
-                if (aligned4 || alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
+                if (aimAligned4) {
+
+                    stopDriveMotors();
+                    setPathState(19);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
                     stopDriveMotors();
                     setPathState(19);
                 }
                 break;
-
             case 19:
-                // Shoot fourth 3 balls
+                // SHOOTING CYCLE 4 - Wait for shooter, then shoot
                 stopDriveMotors();
-                pathTimer.resetTimer();
-                while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                intakeMotor.setPower(-1);
-                blockServo.setPosition(blockServoUp);
-                while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                for (int x = 0; x < 3; x++) {
-                    pushServo.setPosition(pushServoUp);
+                spinUpShooter();
+
+                if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
+                    blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    pushServo.setPosition(pushServoDown);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    for (int x = 0; x < 3; x++) {
+                        pushServo.setPosition(pushServoUp);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                        pushServo.setPosition(pushServoDown);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    }
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    blockServo.setPosition(blockServoDown);
+                    setPathState(20);
                 }
-                telemetry.update();
-                blockServo.setPosition(blockServoDown);
-                setPathState(20);
                 break;
 
             case 20:
@@ -408,6 +444,8 @@ public class TwelveBallRedLL extends OpMode {
         follower.update();
         autonomousPathUpdate();
 
+        telemetry.addData("Aim Done:", aimPid.atSetPoint());
+        telemetry.addData("Shooter Ready:", isShooterReady());
         telemetry.addData("path state", pathState);
         telemetry.addData("x", follower.getPose().getX());
         telemetry.addData("y", follower.getPose().getY());
@@ -545,7 +583,11 @@ public class TwelveBallRedLL extends OpMode {
         controlPointsHood.createLUT();
     }
 
-    private boolean autoAimAndSpinUp() {
+    /**
+     * Auto-aim function - only handles turning the robot to align with the target
+     * @return true if the robot is aligned within tolerance
+     */
+    private boolean autoAim() {
         double error = getTx();
 
         double yaw = (-aimPid.calculate(error) + (AIM_KF * Math.signum(error)));
@@ -560,13 +602,28 @@ public class TwelveBallRedLL extends OpMode {
         rightFrontDrive.setPower(rightFrontPower);
         rightBackDrive.setPower(rightBackPower);
 
+        return aimPid.atSetPoint();
+    }
+
+    /**
+     * Spin up shooter function - adjusts shooter RPM and hood position based on distance
+     */
+    private void spinUpShooter() {
         double distance = clampDistance(distanceFromRed());
         double targetRPM = controlPointsRPM.get(distance);
 
         shootMotor.setVelocity(targetRPM);
         hoodServo.setPosition(controlPointsHood.get(distance));
+    }
 
-        return (aimPid.atSetPoint() && ((Math.abs(shootMotor.getVelocity() - targetRPM) < RPM_TOLERANCE)));
+    /**
+     * Check if shooter is ready to fire
+     * @return true if shooter RPM is within tolerance of target
+     */
+    private boolean isShooterReady() {
+        double distance = clampDistance(distanceFromRed());
+        double targetRPM = controlPointsRPM.get(distance);
+        return (Math.abs(shootMotor.getVelocity() - targetRPM) < RPM_TOLERANCE);
     }
 
     double getTx() {

@@ -30,10 +30,10 @@ public class LLtune extends LinearOpMode {
     DcMotor rightFrontDrive = null;
     DcMotor rightBackDrive = null;
 
-    public static double Kp = 0.025;
-    public static double Ki = 0.0;
-    public static double Kd = 0.001;
-    public static double Kf = 0.15;
+    private static double tuneKp = 0.025;
+    private static double tuneKi = 0.0;
+    private static double tuneKd = 0.001;
+    private static double tuneKf = 0.15;
     private ElapsedTime pushTimer1 = new ElapsedTime();
     private ElapsedTime fireDelayTimer = new ElapsedTime();
     boolean fireDelayActive = false;
@@ -114,7 +114,7 @@ public class LLtune extends LinearOpMode {
 
 
 
-        pid = new PIDFController(new PIDFCoefficients(Kp,0,Kd, Kf));
+        pid = new PIDFController(new PIDFCoefficients(tuneKp,0,tuneKd, tuneKf));
         boolean autoShootActive = false;
         boolean firingArmed = false;
         waitForStart();
@@ -142,7 +142,7 @@ public class LLtune extends LinearOpMode {
             double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
             yaw = gamepad1.right_stick_x;
-            pid.setCoefficients(new PIDFCoefficients(Kp,0,Kd, Kf));
+            pid.setCoefficients(new PIDFCoefficients(tuneKp,0,tuneKd, tuneKf));
 
             if (gamepad1.right_trigger > 0.3 && autoState == autoState.IDLE)
                 autoState = autoState.AIMING;

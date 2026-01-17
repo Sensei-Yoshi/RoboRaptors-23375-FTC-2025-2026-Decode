@@ -93,7 +93,7 @@ public class FarShootBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 2.5) {}
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();

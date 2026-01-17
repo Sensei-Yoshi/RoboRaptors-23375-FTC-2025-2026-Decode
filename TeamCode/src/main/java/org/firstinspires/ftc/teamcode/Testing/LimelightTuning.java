@@ -24,8 +24,7 @@ public class LimelightTuning extends LinearOpMode {
     double shooterVelocity = 1050;
     double hoodPos = 0.40;
 
-    final double pushUp = 0.3, pushDown = 0.9;
-    final double blockUp = 0.3, blockDown = 0.81;
+
 
     Limelight3A limelight;
     ElapsedTime pushTimer = new ElapsedTime();
@@ -34,10 +33,10 @@ public class LimelightTuning extends LinearOpMode {
     int intakeOn = 0;
     int shots = 0;
     final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.3;
+    final double pushServoUp = 0.5;
 
-    final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
-    final double blockServoUp = 0.3;
+    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoUp = 0.25;
 
     @Override
     public void runOpMode() {
@@ -56,8 +55,8 @@ public class LimelightTuning extends LinearOpMode {
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
         shootMotor.setVelocity(shooterVelocity);
         hoodServo.setPosition(hoodPos);
-        pushServo.setPosition(pushDown);
-        blockServo.setPosition(blockDown);
+        pushServo.setPosition(pushServoDown);
+        blockServo.setPosition(blockServoDown);
 
         waitForStart();
 

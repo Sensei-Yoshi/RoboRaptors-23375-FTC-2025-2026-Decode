@@ -281,9 +281,19 @@ public class NewTeleOp extends LinearOpMode {
     }
 
     private double clampDistance(double distance) {
-        if (distance <= 22) return 23;
-        if (distance >= 80) return 79;
-        return distance;
+        if (distance < 22) return 23;
+
+        // Normal range
+        if (distance <= 80) return distance;
+
+        // Hold at 80 until we reach far range
+        if (distance < 110) return 79;
+
+        // Far range
+        if (distance <= 135) return distance;
+
+        // Clamp anything beyond far range
+        return 134;
     }
 
     private double distanceFromRed() {
@@ -304,6 +314,13 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(70, 1270);
         controlPointsRPM.add(75, 1400);
         controlPointsRPM.add(80, 1490);
+        controlPointsRPM.add(110, 1590);
+        controlPointsRPM.add(115, 1590);
+        controlPointsRPM.add(120, 1630);
+        controlPointsRPM.add(125, 1650);
+        controlPointsRPM.add(130, 1680);
+        controlPointsRPM.add(135, 1740);
+
         controlPointsRPM.createLUT();
 
     }
@@ -323,6 +340,12 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(70, 0.498);
         controlPointsHood.add(75, 0.498);
         controlPointsHood.add(80, 0.514);
+        controlPointsHood.add(110, 0.520);
+        controlPointsHood.add(115, 0.520);
+        controlPointsHood.add(120, 0.524);
+        controlPointsHood.add(125, 0.524);
+        controlPointsHood.add(130, 0.524);
+        controlPointsHood.add(135, 0.526);
         controlPointsHood.createLUT();
     }
 

@@ -89,6 +89,10 @@ public class NewTeleOp extends LinearOpMode {
     private boolean hasRumbledForBlock = false;
     private static final long CAMERA_BLOCK_TIMEOUT_MS = 400;
 
+    private boolean manualOverride = false;
+    private static final double MANUAL_RPM = 1100;
+    private static final double MANUAL_HOOD = 0.48;
+
 
     @Override
     public void runOpMode() {
@@ -149,8 +153,22 @@ public class NewTeleOp extends LinearOpMode {
                 }
             }
 
+            if (gamepad1.dpad_up) {
+                if (!manualOverride) {
+                    // Turn ON manual override
+                    manualOverride = true;
+                    limelight.stop();
+                    gamepad1.setLedColor(1, 1, 0, LED_DURATION_CONTINUOUS); // yellow
+                } else {
+                    // Turn OFF manual override
+                    manualOverride = false;
+                    limelight.start();
+                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
+                }
+            }
 
-           if (gamepad1.circleWasPressed())
+
+            if (gamepad1.circleWasPressed())
                 if (intakeOn == 1)
                     intakeOn = 0;
                 else
@@ -175,7 +193,10 @@ public class NewTeleOp extends LinearOpMode {
             //aimPid.setCoefficients(new PIDFCoefficients(0.025,0,0.001, 0.15));
 
             if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE) {
-                if (cameraBlocked) {
+                if (manualOverride) {
+                    // Manual override - skip aiming, go straight to spinning
+                    autoState = AutoState.SPINNING;
+                } else if (cameraBlocked) {
                     // Camera blocked - rumble and don't start auto aim
                     gamepad1.rumble(1.0, 1.0, 500);
                     hasRumbledForBlock = true;
@@ -232,11 +253,17 @@ public class NewTeleOp extends LinearOpMode {
                 hoodTarget = controlPointsHood.get(distance);
             }
 
-            if (!shooterOverride) {
+            if (manualOverride) {
+                // Manual override - fixed values
+                shootMotor.setVelocity(MANUAL_RPM);
+                hoodServo.setPosition(MANUAL_HOOD);
+            } else if (!shooterOverride) {
+                // Auto mode - distance-based values
                 shootMotor.setVelocity(targetRPM);
                 hoodServo.setPosition(hoodTarget);
                 lastAutoRPM = targetRPM;
             } else {
+                // Shooter override - OFF
                 shootMotor.setVelocity(0);
             }
 
@@ -355,9 +382,11 @@ public class NewTeleOp extends LinearOpMode {
             telemetry.addData("KF", aimPid.getF());
             telemetry.addData("Kd", aimPid.getD());
             telemetry.addData("State", autoState);
+            telemetry.addData("Manual Override", manualOverride);
+            telemetry.addData("Camera Blocked", cameraBlocked);
             telemetry.addData("Yaw", yaw);
             telemetry.addData("Distance (in)", "%.1f", distance);
-           // telemetry.addData("Target Velocity", targetRPM);
+            // telemetry.addData("Target Velocity", targetRPM);
             telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
             telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
             telemetry.addData("TX", "%.3f", getTx());

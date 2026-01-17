@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
+
 import com.acmerobotics.dashboard.config.Config;
 import com.arcrobotics.ftclib.controller.PIDFController;
 import com.arcrobotics.ftclib.util.InterpLUT;
@@ -69,6 +71,23 @@ public class NewTeleOp extends LinearOpMode {
     ElapsedTime blockDelayTimer = new ElapsedTime();
     boolean blockDelayActive = false;
     final double BLOCK_OPEN_DELAY = 25;
+    private double lastTx = 0.0;
+    private long lastSeenTimeMs = 0;
+    private static final long TARGET_HOLD_MS = 250;
+
+    private double lastDistance = 0.0;
+    private long lastDistanceSeenTimeMs = 0;
+
+    private boolean velocityLocked = false;
+    private double lockedDistance = 0.0;
+    private double lockedRPM = 0.0;
+    private double lockedHood = 0.0;
+    boolean shooterOverride = false;
+    double lastAutoRPM = 0;
+    private boolean cameraBlocked = false;
+    private long lastValidTargetTime = 0;
+    private boolean hasRumbledForBlock = false;
+    private static final long CAMERA_BLOCK_TIMEOUT_MS = 400;
 
 
     @Override
@@ -117,6 +136,18 @@ public class NewTeleOp extends LinearOpMode {
         double yaw = 0;
 
         while (opModeIsActive()) {
+            if (gamepad1.aWasPressed()) {
+                if (!shooterOverride) {
+                    // Turn shooter OFF
+                    shootMotor.setVelocity(0);
+                    shooterOverride = true;
+                    gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
+                } else {
+                    // Turn shooter back ON to auto mode
+                    shooterOverride = false;
+                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
+                }
+            }
 
 
            if (gamepad1.circleWasPressed())
@@ -140,21 +171,39 @@ public class NewTeleOp extends LinearOpMode {
             double axial = -gamepad1.left_stick_y;
             double lateral = gamepad1.left_stick_x;
             yaw = gamepad1.right_stick_x;
+            updateCameraBlockStatus();
             //aimPid.setCoefficients(new PIDFCoefficients(0.025,0,0.001, 0.15));
 
-            if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE)
-                autoState = AutoState.AIMING;
+            if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE) {
+                if (cameraBlocked) {
+                    // Camera blocked - rumble and don't start auto aim
+                    gamepad1.rumble(1.0, 1.0, 500);
+                    hasRumbledForBlock = true;
+                } else {
+                    autoState = AutoState.AIMING;
+                    hasRumbledForBlock = false;
+                }
+            }
 
             if (autoState == AutoState.AIMING) {
-                double error = getTx();
-
-                //aimPid.updateFeedForwardInput(Math.signum(error));
-
-                yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));;
-                if (aimPid.atSetPoint()) {
-                    autoState = AutoState.SPINNING;
-                    axial = 0;
-                    lateral = 0;
+                // Check if camera becomes blocked during aiming
+                if (cameraBlocked) {
+                    if (!hasRumbledForBlock) {
+                        gamepad1.rumble(1.0, 1.0, 500);
+                        hasRumbledForBlock = true;
+                    }
+                    // Abort auto aim sequence
+                    autoState = AutoState.IDLE;
+                    velocityLocked = false;
+                    blockDelayActive = false;
+                } else {
+                    double error = getTx();
+                    yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));
+                    if (aimPid.atSetPoint()) {
+                        autoState = AutoState.SPINNING;
+                        axial = 0;
+                        lateral = 0;
+                    }
                 }
             }
 
@@ -170,19 +219,63 @@ public class NewTeleOp extends LinearOpMode {
             rightBackDrive.setPower(rightBackPower);
 
 
-            distance = clampDistance(distanceFromRed());
+            distance = clampDistance(getStableDistance());
 
-            double targetRPM = controlPointsRPM.get(distance);
+            double targetRPM;
+            double hoodTarget;
 
-            shootMotor.setVelocity(targetRPM);
-            hoodServo.setPosition(controlPointsHood.get(distance));
+            if (velocityLocked) {
+                targetRPM = lockedRPM;
+                hoodTarget = lockedHood;
+            } else {
+                targetRPM = controlPointsRPM.get(distance);
+                hoodTarget = controlPointsHood.get(distance);
+            }
+
+            if (!shooterOverride) {
+                shootMotor.setVelocity(targetRPM);
+                hoodServo.setPosition(hoodTarget);
+                lastAutoRPM = targetRPM;
+            } else {
+                shootMotor.setVelocity(0);
+            }
 
             switch (autoState) {
+
                 case SPINNING:
-                    if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance)
+                    if (cameraBlocked) {
+                        if (!hasRumbledForBlock) {
+                            gamepad1.rumble(1.0, 1.0, 500);
+                            hasRumbledForBlock = true;
+                        }
+                        autoState = AutoState.IDLE;
+                        velocityLocked = false;
+                        blockDelayActive = false;
+                    } else if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance) {
                         autoState = AutoState.FIRING;
+                    }
                     break;
                 case FIRING:
+                    if (cameraBlocked) {
+                        if (!hasRumbledForBlock) {
+                            gamepad1.rumble(1.0, 1.0, 500);
+                            hasRumbledForBlock = true;
+                        }
+                        // Abort firing
+                        autoState = AutoState.IDLE;
+                        firingArmed = false;
+                        velocityLocked = false;
+                        blockDelayActive = false;
+                        shots = 0;
+                        blockServo.setPosition(blockServoDown);
+                        break;
+                    }
+                    if (!velocityLocked) {
+                        velocityLocked = true;
+                        lockedDistance = distance;
+                        lockedRPM = controlPointsRPM.get(distance);
+                        lockedHood = controlPointsHood.get(distance);
+                    }
                     /*
                     if (!fireDelayActive) {
                         fireDelayActive = true;
@@ -212,6 +305,7 @@ public class NewTeleOp extends LinearOpMode {
                     if (shots == 0) {
                         firingArmed = false;
                         //fireDelayActive = false;
+                        velocityLocked = false;
                         blockDelayActive = false;
                         autoState = AutoState.IDLE;
                     }
@@ -236,6 +330,20 @@ public class NewTeleOp extends LinearOpMode {
                     if (shots == 0) {
                         blockServo.setPosition(blockServoDown);
                     }
+                }
+            }
+
+            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
+                isPushingManual = true;
+                pushTimer.reset();
+                pushServo.setPosition(pushServoUp);
+                blockServo.setPosition(blockServoUp);
+            }
+            if (isPushingManual) {
+                if (pushTimer.milliseconds() > 400) {
+                    pushServo.setPosition(pushServoDown);
+                    blockServo.setPosition(blockServoDown);
+                    isPushingManual = false;
                 }
             }
 
@@ -314,13 +422,12 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(70, 1270);
         controlPointsRPM.add(75, 1400);
         controlPointsRPM.add(80, 1490);
-        controlPointsRPM.add(110, 1590);
-        controlPointsRPM.add(115, 1590);
-        controlPointsRPM.add(120, 1630);
-        controlPointsRPM.add(125, 1650);
+        controlPointsRPM.add(110, 1620);
+        controlPointsRPM.add(115, 1620);
+        controlPointsRPM.add(120, 1660);
+        controlPointsRPM.add(125, 1670);
         controlPointsRPM.add(130, 1680);
-        controlPointsRPM.add(135, 1740);
-
+        controlPointsRPM.add(135, 1760);
         controlPointsRPM.createLUT();
 
     }
@@ -348,12 +455,51 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(135, 0.526);
         controlPointsHood.createLUT();
     }
+    private double getStableDistance() {
+        double d = distanceFromRed();
+        long now = System.currentTimeMillis();
+
+        if (d > 0) {
+            lastDistance = d;
+            lastDistanceSeenTimeMs = now;
+            return d;
+        }
+
+        // Hold last known distance briefly
+        if (now - lastDistanceSeenTimeMs <= TARGET_HOLD_MS) {
+            return lastDistance;
+        }
+
+        return 0;
+    }
 
     double getTx() {
         LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            return result.getTx();
-        } else
-            return 0;
+        long now = System.currentTimeMillis();
+
+        if (result != null && result.isValid() && !result.getFiducialResults().isEmpty()) {
+            lastTx = result.getTx();
+            lastSeenTimeMs = now;
+            lastValidTargetTime = now;
+            cameraBlocked = false;
+            return lastTx;
+        }
+        if (now - lastSeenTimeMs <= TARGET_HOLD_MS) {
+            return lastTx;
+        }
+
+        return 0;
+    }
+    private void updateCameraBlockStatus() {
+        long now = System.currentTimeMillis();
+
+        // If we have a valid target recently, camera is not blocked
+        if (now - lastValidTargetTime <= CAMERA_BLOCK_TIMEOUT_MS) {
+            cameraBlocked = false;
+            hasRumbledForBlock = false;
+        } else {
+            // No valid target for CAMERA_BLOCK_TIMEOUT_MS - camera is blocked
+            cameraBlocked = true;
+        }
     }
 }

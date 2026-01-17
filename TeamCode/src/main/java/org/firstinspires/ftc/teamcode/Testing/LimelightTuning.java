@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Testing;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -13,7 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.List;
-
+@Disabled
 @TeleOp(name="LimelightShotTuning", group="Tuning")
 public class LimelightTuning extends LinearOpMode {
     private ElapsedTime pushTimer1 = new ElapsedTime();

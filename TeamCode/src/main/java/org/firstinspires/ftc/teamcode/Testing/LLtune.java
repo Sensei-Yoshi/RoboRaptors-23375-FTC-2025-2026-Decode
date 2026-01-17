@@ -6,6 +6,7 @@ import com.pedropathing.control.PIDFController;
 import com.pedropathing.control.PIDFCoefficients;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -20,6 +21,7 @@ import java.util.List;
 
 
 @Config
+@Disabled
 @TeleOp(name = "LLtune", group = "Tuning")
 public class LLtune extends LinearOpMode {
     private enum AutoState { IDLE, AIMING, SPINNING, FIRING }

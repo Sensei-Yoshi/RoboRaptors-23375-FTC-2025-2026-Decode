@@ -67,6 +67,7 @@ public class TeleOp extends LinearOpMode {
 
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
 
 
@@ -75,6 +76,8 @@ public class TeleOp extends LinearOpMode {
         rightFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -102,7 +105,12 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            liftMotor.setPower(gamepad1.left_stick_y);
+            liftMotor.setPower(gamepad2.left_stick_y);
+
+            //liftMotor.setTargetPosition(-1119);
+            //liftMotor.setPower(0.8);
+            //liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
 
 
 

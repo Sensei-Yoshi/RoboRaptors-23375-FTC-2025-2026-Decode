@@ -40,6 +40,7 @@ public class NewTeleOp extends LinearOpMode {
     DcMotor leftBackDrive = null;
     DcMotor rightFrontDrive = null;
     DcMotor rightBackDrive = null;
+    private DcMotor liftMotor = null;
 
 
     double hoodPos = 0.40;
@@ -73,7 +74,7 @@ public class NewTeleOp extends LinearOpMode {
     final double BLOCK_OPEN_DELAY = 25;
     private double lastTx = 0.0;
     private long lastSeenTimeMs = 0;
-    private static final long TARGET_HOLD_MS = 250;
+    private static final long TARGET_HOLD_MS = 150;
 
     private double lastDistance = 0.0;
     private long lastDistanceSeenTimeMs = 0;
@@ -108,6 +109,7 @@ public class NewTeleOp extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         light = hardwareMap.get(Servo.class, "light");
+        liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
@@ -153,11 +155,11 @@ public class NewTeleOp extends LinearOpMode {
                 }
             }
 
-            if (gamepad1.dpad_up) {
+            if (gamepad1.dpadUpWasPressed()) {
                 if (!manualOverride) {
                     // Turn ON manual override
                     manualOverride = true;
-                    limelight.stop();
+                    //limelight.stop();
                     gamepad1.setLedColor(1, 1, 0, LED_DURATION_CONTINUOUS); // yellow
                 } else {
                     // Turn OFF manual override
@@ -218,7 +220,7 @@ public class NewTeleOp extends LinearOpMode {
                     velocityLocked = false;
                     blockDelayActive = false;
                 } else {
-                    double error = getTx();
+                    double error = getTx(24);
                     yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));
                     if (aimPid.atSetPoint()) {
                         autoState = AutoState.SPINNING;
@@ -303,15 +305,6 @@ public class NewTeleOp extends LinearOpMode {
                         lockedRPM = controlPointsRPM.get(distance);
                         lockedHood = controlPointsHood.get(distance);
                     }
-                    /*
-                    if (!fireDelayActive) {
-                        fireDelayActive = true;
-                        fireDelayTimer.reset();
-                        break;
-                    }
-                    if (fireDelayTimer.seconds() < 0.3) break;
-
-                     */
 
                     // Step 2 – Open blocker and wait before pushing
                     if (!blockDelayActive) {
@@ -389,7 +382,7 @@ public class NewTeleOp extends LinearOpMode {
             // telemetry.addData("Target Velocity", targetRPM);
             telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
             telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
-            telemetry.addData("TX", "%.3f", getTx());
+            telemetry.addData("TX", "%.3f", getTx(24));
             telemetry.update();
         }
     }
@@ -399,14 +392,14 @@ public class NewTeleOp extends LinearOpMode {
     private double distanceFromTag(double tagID) {
         List<LLResultTypes.FiducialResult> r = limelight.getLatestResult().getFiducialResults();
         if (r.isEmpty()) {
-            light.setPosition(0.277);
+            light.setPosition(0.388);
             return 0.0;
 
         }
 
         for (LLResultTypes.FiducialResult i : r) {
             if (i != null && i.getFiducialId() == tagID) {
-                light.setPosition(0.500);
+                light.setPosition(0.728);
                 double x = i.getCameraPoseTargetSpace().getPosition().x / DistanceUnit.mPerInch;
                 double z = i.getCameraPoseTargetSpace().getPosition().z / DistanceUnit.mPerInch;
                 Vector e = new Vector();
@@ -453,10 +446,10 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(80, 1490);
         controlPointsRPM.add(110, 1620);
         controlPointsRPM.add(115, 1620);
-        controlPointsRPM.add(120, 1660);
-        controlPointsRPM.add(125, 1670);
-        controlPointsRPM.add(130, 1680);
-        controlPointsRPM.add(135, 1760);
+        controlPointsRPM.add(120, 1650);
+        controlPointsRPM.add(125, 1660);
+        controlPointsRPM.add(130, 1660);
+        controlPointsRPM.add(135, 1740);
         controlPointsRPM.createLUT();
 
     }
@@ -502,17 +495,21 @@ public class NewTeleOp extends LinearOpMode {
         return 0;
     }
 
-    double getTx() {
+    private double getTx(double targetID) {
         LLResult result = limelight.getLatestResult();
         long now = System.currentTimeMillis();
 
-        if (result != null && result.isValid() && !result.getFiducialResults().isEmpty()) {
-            lastTx = result.getTx();
-            lastSeenTimeMs = now;
-            lastValidTargetTime = now;
-            cameraBlocked = false;
-            return lastTx;
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        for (LLResultTypes.FiducialResult fiducial : fiducials) {
+            if (fiducial != null && fiducial.getFiducialId() == targetID) {
+                lastTx = fiducial.getTargetXDegrees();
+                lastSeenTimeMs = now;
+                lastValidTargetTime = now;
+                cameraBlocked = false;
+                return lastTx;
+            }
         }
+
         if (now - lastSeenTimeMs <= TARGET_HOLD_MS) {
             return lastTx;
         }

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+
 
 import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 
@@ -22,8 +22,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.List;
 
 @Config
-@TeleOp(name="Red TeleOp", group="Tuning")
-public class NewTeleOp extends LinearOpMode {
+@TeleOp(name="Blue TeleOp", group="Tuning")
+public class TeleOpBlue extends LinearOpMode {
 
     private enum AutoState { IDLE, AIMING, SPINNING, FIRING }
     private com.arcrobotics.ftclib.controller.PIDFController aimPid;
@@ -233,7 +233,7 @@ public class NewTeleOp extends LinearOpMode {
                     velocityLocked = false;
                     blockDelayActive = false;
                 } else {
-                    double error = getTx(24);
+                    double error = getTx(20);
                     yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));
                     if (aimPid.atSetPoint()) {
                         autoState = AutoState.SPINNING;
@@ -392,7 +392,7 @@ public class NewTeleOp extends LinearOpMode {
             telemetry.addData("Locked RPM", "%.0f", lockedRPM);
             telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
             telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
-            telemetry.addData("TX", "%.3f", getTx(24));
+            telemetry.addData("TX", "%.3f", getTx(20));
             telemetry.update();
         }
     }
@@ -437,7 +437,7 @@ public class NewTeleOp extends LinearOpMode {
     }
 
     private double distanceFromRed() {
-        return distanceFromTag(24);
+        return distanceFromTag(20);
     }
 
     public void createRPMControlPoints() {

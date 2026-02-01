@@ -244,7 +244,7 @@ public class FiveteenBallRedLL extends OpMode {
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -304,7 +304,7 @@ public class FiveteenBallRedLL extends OpMode {
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -364,7 +364,7 @@ public class FiveteenBallRedLL extends OpMode {
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -427,7 +427,7 @@ public class FiveteenBallRedLL extends OpMode {
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.029) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();

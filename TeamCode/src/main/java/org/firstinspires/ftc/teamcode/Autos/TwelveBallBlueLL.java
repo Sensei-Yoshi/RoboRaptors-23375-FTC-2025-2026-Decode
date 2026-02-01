@@ -25,8 +25,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
 
-@Autonomous(name = "12 Ball Red Limelight")
-public class TwelveBallRedLL extends OpMode {
+@Autonomous(name = "12 Ball Blue Limelight")
+public class TwelveBallBlueLL extends OpMode {
     private InterpLUT controlPointsRPM = new InterpLUT();
     private InterpLUT controlPointsHood = new InterpLUT();
     final double pushServoDown = 0.9;
@@ -43,16 +43,16 @@ public class TwelveBallRedLL extends OpMode {
     private static final double RPM_TOLERANCE = 150;
     private static final double MAX_ALIGN_TIME = 3.0;
 
-    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
-    private final Pose scorePose = new Pose(101, 103, Math.toRadians(45));
-    private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));
-    private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0));
-    private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0));
-    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0));
-    private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0));
-    private final Pose pickup5Pose = new Pose(126, 40, Math.toRadians(0));
-    private final Pose park = new Pose(113, 74, Math.toRadians(0));
-    private final Pose gatePose = new Pose(128, 77, Math.toRadians(0));
+    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
+    private final Pose scorePose = new Pose(101, 103, Math.toRadians(45)).mirror();
+    private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();
+    private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror();
+    private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0)).mirror();
+    private final Pose pickup5Pose = new Pose(126, 40, Math.toRadians(0)).mirror();
+    private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
+    private final Pose gatePose = new Pose(128, 77, Math.toRadians(0)).mirror();
 
     private DcMotor leftFrontDrive = null;
     private DcMotor leftBackDrive = null;
@@ -80,18 +80,18 @@ public class TwelveBallRedLL extends OpMode {
                 .setConstantHeadingInterpolation(turnPose.getHeading())
                 .build();
         gatePush = follower.pathBuilder()
-                .addPath(new BezierCurve(pickup1Pose, (new Pose(107, 73)), gatePose))
+                .addPath(new BezierCurve(pickup1Pose, (new Pose(107, 73)).mirror(), gatePose))
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
 
         grabPickup1 = follower.pathBuilder()
-                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)), pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(), pickup1Pose))
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
 
         scorePickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(gatePose, scorePose))
-                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(40))
+                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(140))
                 .build();
 
         grabPickup2 = follower.pathBuilder()
@@ -106,7 +106,7 @@ public class TwelveBallRedLL extends OpMode {
 
         scorePickup2 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup2Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(42))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(138))
                 .build();
 
         grabPickup3 = follower.pathBuilder()
@@ -128,7 +128,7 @@ public class TwelveBallRedLL extends OpMode {
                 .build();
         scorePickup3 = follower.pathBuilder()
                 .addPath(new BezierLine(pickup5Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(42))
+                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(138))
                 .build();
     }
 
@@ -143,13 +143,13 @@ public class TwelveBallRedLL extends OpMode {
             case 1:
                 // SHOOTING CYCLE 1 - Arrive at score position
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(24)) {
-                        telemetry.addLine("AprilTag 24 found - starting alignment");
+                    if (AprilTagfound(20)) {
+                        telemetry.addLine("AprilTag 20 found - starting alignment");
                         telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(2);
                     } else {
-                        telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
                         telemetry.update();
                         spinUpShooter();
                         setPathState(3);
@@ -218,13 +218,13 @@ public class TwelveBallRedLL extends OpMode {
             case 6:
                 // SHOOTING CYCLE 2 - Arrive at score position
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(24)) {
-                        telemetry.addLine("AprilTag 24 found - starting alignment");
+                    if (AprilTagfound(20)) {
+                        telemetry.addLine("AprilTag 20 found - starting alignment");
                         telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(7);
                     } else {
-                        telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
                         telemetry.update();
                         spinUpShooter();
                         setPathState(8);
@@ -296,13 +296,13 @@ public class TwelveBallRedLL extends OpMode {
             case 12:
                 // SHOOTING CYCLE 3 - Arrive at score position
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(24)) {
-                        telemetry.addLine("AprilTag 24 found - starting alignment");
+                    if (AprilTagfound(20)) {
+                        telemetry.addLine("AprilTag 20 found - starting alignment");
                         telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(13);
                     } else {
-                        telemetry.addLine("WARNING: AprilTag 24 not found - shooting without alignment");
+                        telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
                         telemetry.update();
                         spinUpShooter();
                         setPathState(14);
@@ -367,7 +367,7 @@ public class TwelveBallRedLL extends OpMode {
             case 17:
                 // SHOOTING CYCLE 4 - Arrive at score position
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(24)) {
+                    if (AprilTagfound(20)) {
 
                         alignTimer.resetTimer();
                         setPathState(18);
@@ -546,7 +546,7 @@ public class TwelveBallRedLL extends OpMode {
     }
 
     private double distanceFromRed() {
-        return distanceFromTag(24);
+        return distanceFromTag(20);
     }
 
     public void createRPMControlPoints() {

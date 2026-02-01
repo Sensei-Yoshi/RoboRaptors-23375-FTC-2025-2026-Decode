@@ -47,8 +47,8 @@ public class NineBallBlueLL extends OpMode {
     private final Pose scorePose = new Pose(103, 103, Math.toRadians(45)).mirror();
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror();
-    private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0)).mirror();
-    private final Pose pickup3Pose = new Pose(128, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup2Pose = new Pose(94, 61, Math.toRadians(0)).mirror();
+    private final Pose pickup3Pose = new Pose(128, 61, Math.toRadians(0)).mirror();
     private final Pose park = new Pose(113,74, Math.toRadians(0));
 
     private DcMotor leftFrontDrive = null;

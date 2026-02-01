@@ -26,12 +26,12 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
 
-@Autonomous(name = "15 Ball Red AutoAim")
+@Autonomous(name = "15 Ball Red Limelight")
 public class FiveteenBallRedLL extends OpMode {
     private InterpLUT controlPointsRPM = new InterpLUT();
     private InterpLUT controlPointsHood = new InterpLUT();
     final double pushServoDown = 0.9;
-    final double pushServoUp = 0.5;
+    final double pushServoUp = 0.3;
     final double blockServoDown = 0.84;
     final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
@@ -45,16 +45,15 @@ public class FiveteenBallRedLL extends OpMode {
     private static final double MAX_ALIGN_TIME = 3.0;
 
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
-    private final Pose scorePose = new Pose(107, 103, Math.toRadians(45));
+    private final Pose scorePose = new Pose(97, 97, Math.toRadians(45));
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));
     private final Pose pickup1Pose = new Pose(125, 85, Math.toRadians(0));
     private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0));
-    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0));
+    private final Pose pickup3Pose = new Pose(126, 61, Math.toRadians(0));
     private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0));
     private final Pose pickup5Pose = new Pose(128, 40, Math.toRadians(0));
     private final Pose park = new Pose(113, 74, Math.toRadians(0));
-    private final Pose gatePose = new Pose(133, 63.5, Math.toRadians(33));
-
+    private final Pose gatePose = new Pose(133, 61, Math.toRadians(30));
     private DcMotor leftFrontDrive = null;
     private DcMotor leftBackDrive = null;
     private DcMotor rightFrontDrive = null;

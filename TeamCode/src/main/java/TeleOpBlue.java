@@ -452,14 +452,14 @@ public class TeleOpBlue extends LinearOpMode {
         controlPointsRPM.add(60, 1230);
         controlPointsRPM.add(65, 1230);
         controlPointsRPM.add(70, 1270);
-        controlPointsRPM.add(75, 1400);
-        controlPointsRPM.add(80, 1490);
+        controlPointsRPM.add(75, 1430);
+        controlPointsRPM.add(80, 1500);
         controlPointsRPM.add(110, 1620);
-        controlPointsRPM.add(115, 1620);
-        controlPointsRPM.add(120, 1650);
-        controlPointsRPM.add(125, 1660);
-        controlPointsRPM.add(130, 1660);
-        controlPointsRPM.add(135, 1740);
+        controlPointsRPM.add(115, 1630);
+        controlPointsRPM.add(120, 1660);
+        controlPointsRPM.add(125, 1680);
+        controlPointsRPM.add(130, 1680);
+        controlPointsRPM.add(135, 1760);
         controlPointsRPM.createLUT();
 
     }

@@ -39,13 +39,13 @@ public class TwelveBallAutoBlue extends OpMode {
     not getting all balls = more x
     not aligned with balls = change y
      */
-    private final Pose pickup2Pose = new Pose(90, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup2Pose = new Pose(90, 61, Math.toRadians(0)).mirror();
     /*
     pickup2Pose y = pickup3Pose y
     if not aligned = change y
 
      */
-    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup3Pose = new Pose(126, 61, Math.toRadians(0)).mirror();
 
     private final Pose pickup4Pose = new Pose(90, 40, Math.toRadians(0)).mirror();
     private final Pose pickup5Pose = new Pose(126, 40, Math.toRadians(0)).mirror();

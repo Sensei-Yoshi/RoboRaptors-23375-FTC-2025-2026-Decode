@@ -61,7 +61,7 @@ public class NewTeleOp extends LinearOpMode {
     final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
     final double blockServoUp = 0.25;
 
-    public static double Kp = 0.025;
+    public static double Kp = 0.02;
     public static double Ki = 0.0;
     public static double Kd = 0.003;
     public static double Kf = 0.15;
@@ -74,7 +74,7 @@ public class NewTeleOp extends LinearOpMode {
     final double BLOCK_OPEN_DELAY = 25;
     private double lastTx = 0.0;
     private long lastSeenTimeMs = 0;
-    private static final long TARGET_HOLD_MS = 150;
+    private static final long TARGET_HOLD_MS = 70;
 
     private double lastDistance = 0.0;
     private long lastDistanceSeenTimeMs = 0;
@@ -174,7 +174,6 @@ public class NewTeleOp extends LinearOpMode {
                     gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
                 }
             }
-
 
             if (gamepad1.circleWasPressed())
                 if (intakeOn == 1)
@@ -452,16 +451,15 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(60, 1230);
         controlPointsRPM.add(65, 1230);
         controlPointsRPM.add(70, 1270);
-        controlPointsRPM.add(75, 1430);
-        controlPointsRPM.add(80, 1500);
-        controlPointsRPM.add(110, 1620);
+        controlPointsRPM.add(75, 1410);
+        controlPointsRPM.add(80, 1490);
+        controlPointsRPM.add(110, 1630);
         controlPointsRPM.add(115, 1630);
         controlPointsRPM.add(120, 1660);
-        controlPointsRPM.add(125, 1680);
-        controlPointsRPM.add(130, 1680);
-        controlPointsRPM.add(135, 1760);
+        controlPointsRPM.add(125, 1690);
+        controlPointsRPM.add(130, 1690);
+        controlPointsRPM.add(135, 1730);
         controlPointsRPM.createLUT();
-
     }
 
 
@@ -508,22 +506,21 @@ public class NewTeleOp extends LinearOpMode {
     private double getTx(double targetID) {
         LLResult result = limelight.getLatestResult();
         long now = System.currentTimeMillis();
-
         List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
         for (LLResultTypes.FiducialResult fiducial : fiducials) {
             if (fiducial != null && fiducial.getFiducialId() == targetID) {
-                lastTx = fiducial.getTargetXDegrees();
                 lastSeenTimeMs = now;
                 lastValidTargetTime = now;
                 cameraBlocked = false;
+                lastTx = fiducial.getTargetXDegrees();
                 return lastTx;
             }
         }
 
+
         if (now - lastSeenTimeMs <= TARGET_HOLD_MS) {
             return lastTx;
         }
-
         return 0;
     }
     private void updateCameraBlockStatus() {

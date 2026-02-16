@@ -91,7 +91,7 @@ public class TwelveBallBlueLL extends OpMode {
 
         scorePickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(gatePose, scorePose))
-                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(140))
+                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(138))//140
                 .build();
 
         grabPickup2 = follower.pathBuilder()
@@ -167,7 +167,6 @@ public class TwelveBallBlueLL extends OpMode {
                     stopDriveMotors();
                     setPathState(3);
                 } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
-
                     stopDriveMotors();
                     setPathState(3);
                 }

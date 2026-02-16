@@ -91,7 +91,7 @@ public class TwelveBallRedLL extends OpMode {
 
         scorePickup1 = follower.pathBuilder()
                 .addPath(new BezierLine(gatePose, scorePose))
-                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(40))
+                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(38))
                 .build();
 
         grabPickup2 = follower.pathBuilder()

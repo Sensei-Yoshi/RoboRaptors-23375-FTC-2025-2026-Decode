@@ -6,6 +6,7 @@ import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
@@ -24,7 +25,7 @@ public class TeleOp extends LinearOpMode {
     private DcMotor rightBackDrive = null;
     private DcMotorEx intakeMotor = null;
     private DcMotorEx shootMotor = null;
-    private DcMotor liftMotor = null;
+    private DcMotorEx liftMotor = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
     private Servo hoodServo = null;
@@ -34,10 +35,10 @@ public class TeleOp extends LinearOpMode {
     final double farLaunch = 1580;
 
     final double pushServoDown = 0.85; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.3;
+    final double pushServoUp = 0.84;
 
     final double blockServoDown = 0.81; //if two balls are shooting at once: <0.81 == up and >0.81 == down
-    final double blockServoUp = 0.3;
+    final double blockServoUp = 0.25;
 
     final double hoodServoClose = 0.48; //== <0.48 == less curved shot and >0.48 == direct shot
     final double hoodServoFar = 0.52;
@@ -56,7 +57,7 @@ public class TeleOp extends LinearOpMode {
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
-        liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
+        liftMotor = hardwareMap.get(DcMotorEx.class, "liftMotor");
         light = hardwareMap.get(Servo.class, "light");
 
 
@@ -64,11 +65,12 @@ public class TeleOp extends LinearOpMode {
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
+        liftMotor.setDirection(DcMotor.Direction.REVERSE);
 
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        liftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        liftMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
 
 
         leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -76,8 +78,6 @@ public class TeleOp extends LinearOpMode {
         rightFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
@@ -90,6 +90,7 @@ public class TeleOp extends LinearOpMode {
         double lastShooterVelocity = closeLaunch;
         boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true, isWaitingBeforeFirstShot = false;
         shootMotor.setVelocity(closeLaunch);
+        liftMotor.setVelocity(closeLaunch);
         gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS); //set color of gamepad
 
 
@@ -105,7 +106,7 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            liftMotor.setPower(gamepad2.left_stick_y);
+            //liftMotor.setPower(gamepad2.left_stick_y);
 
             //liftMotor.setTargetPosition(-1119);
             //liftMotor.setPower(0.8);
@@ -114,10 +115,10 @@ public class TeleOp extends LinearOpMode {
 
 
 
-      //  leftFrontDrive.setPower(leftFrontPower);
-       //  leftBackDrive.setPower(leftBackPower);
-      // rightFrontDrive.setPower(rightFrontPower);
-      // rightBackDrive.setPower(rightBackPower);
+        leftFrontDrive.setPower(leftFrontPower);
+        leftBackDrive.setPower(leftBackPower);
+      rightFrontDrive.setPower(rightFrontPower);
+      rightBackDrive.setPower(rightBackPower);
 
 
             if (gamepad1.circleWasPressed())
@@ -147,6 +148,7 @@ public class TeleOp extends LinearOpMode {
                 if (!shooterOverride) {
                     // Turn shooter OFF
                     shootMotor.setVelocity(0);
+                    liftMotor.setVelocity(0);
                     shooterOverride = true;
                     gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
                 } else {

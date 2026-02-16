@@ -74,7 +74,7 @@ public class NewTeleOp extends LinearOpMode {
     final double BLOCK_OPEN_DELAY = 25;
     private double lastTx = 0.0;
     private long lastSeenTimeMs = 0;
-    private static final long TARGET_HOLD_MS = 70;
+    private static final long TARGET_HOLD_MS = 30;
 
     private double lastDistance = 0.0;
     private long lastDistanceSeenTimeMs = 0;
@@ -453,12 +453,12 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(70, 1270);
         controlPointsRPM.add(75, 1410);
         controlPointsRPM.add(80, 1490);
-        controlPointsRPM.add(110, 1630);
-        controlPointsRPM.add(115, 1630);
-        controlPointsRPM.add(120, 1660);
-        controlPointsRPM.add(125, 1690);
-        controlPointsRPM.add(130, 1690);
-        controlPointsRPM.add(135, 1730);
+        controlPointsRPM.add(110, 1640);
+        controlPointsRPM.add(115, 1640);
+        controlPointsRPM.add(120, 1650);
+        controlPointsRPM.add(125, 1650);
+        controlPointsRPM.add(130, 1660);
+        controlPointsRPM.add(135, 1710);
         controlPointsRPM.createLUT();
     }
 
@@ -473,15 +473,15 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(50, 0.484);
         controlPointsHood.add(55, 0.490);
         controlPointsHood.add(60, 0.490);
-        controlPointsHood.add(65, 0.494);
-        controlPointsHood.add(70, 0.498);
-        controlPointsHood.add(75, 0.498);
+        controlPointsHood.add(65, 0.497);
+        controlPointsHood.add(70, 0.500);
+        controlPointsHood.add(75, 0.500);
         controlPointsHood.add(80, 0.514);
-        controlPointsHood.add(110, 0.520);
-        controlPointsHood.add(115, 0.520);
+        controlPointsHood.add(110, 0.522);
+        controlPointsHood.add(115, 0.522);
         controlPointsHood.add(120, 0.524);
-        controlPointsHood.add(125, 0.524);
-        controlPointsHood.add(130, 0.524);
+        controlPointsHood.add(125, 0.526);
+        controlPointsHood.add(130, 0.526);
         controlPointsHood.add(135, 0.526);
         controlPointsHood.createLUT();
     }

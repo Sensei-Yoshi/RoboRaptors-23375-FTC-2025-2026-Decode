@@ -1,5 +1,5 @@
 
-package org.firstinspires.ftc.teamcode.Autos;
+package org.firstinspires.ftc.teamcode.Autos.LimeLight;
 
 import com.arcrobotics.ftclib.controller.PIDFController;
 import com.arcrobotics.ftclib.util.InterpLUT;

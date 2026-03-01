@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.Autos;
+package org.firstinspires.ftc.teamcode.Autos.LimeLight;
 
 import com.arcrobotics.ftclib.controller.PIDFController;
 import com.arcrobotics.ftclib.util.InterpLUT;
@@ -25,9 +25,9 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
 
-@Autonomous(name = "9 Ball Blue Limelight")
-public class NineBallBlueLL extends OpMode {
-    private  InterpLUT controlPointsRPM = new InterpLUT();
+@Autonomous(name = "12 Ball Blue Limelight")
+public class TwelveBallBlueLL extends OpMode {
+    private InterpLUT controlPointsRPM = new InterpLUT();
     private InterpLUT controlPointsHood = new InterpLUT();
     final double pushServoDown = 0.9;
     final double pushServoUp = 0.5;
@@ -44,12 +44,15 @@ public class NineBallBlueLL extends OpMode {
     private static final double MAX_ALIGN_TIME = 3.0;
 
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(45)).mirror();
+    private final Pose scorePose = new Pose(101, 103, Math.toRadians(45)).mirror();
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror();
-    private final Pose pickup2Pose = new Pose(94, 61, Math.toRadians(0)).mirror();
-    private final Pose pickup3Pose = new Pose(128, 61, Math.toRadians(0)).mirror();
-    private final Pose park = new Pose(113,74, Math.toRadians(0));
+    private final Pose pickup2Pose = new Pose(94, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
+    private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0)).mirror();
+    private final Pose pickup5Pose = new Pose(126, 40, Math.toRadians(0)).mirror();
+    private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
+    private final Pose gatePose = new Pose(128, 77, Math.toRadians(0)).mirror();
 
     private DcMotor leftFrontDrive = null;
     private DcMotor leftBackDrive = null;
@@ -65,7 +68,7 @@ public class NineBallBlueLL extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer, alignTimer;
     private int pathState;
-    private PathChain scorePreload, runPickup, grabPickup1, scorePickup1, grabPickup2, scorePickup2, backUp, grabPickup3, scorePickup3, turnPath, parkRun;
+    private PathChain scorePreload, runPickup, grabPickup1, scorePickup1, grabPickup2, scorePickup2, backUp, grabPickup3, scorePickup3, turnPath, parkRun, gatePush, runPickup2;
 
     public void buildPaths() {
         scorePreload = follower.pathBuilder()
@@ -76,14 +79,19 @@ public class NineBallBlueLL extends OpMode {
                 .addPath(new BezierPoint(turnPose))
                 .setConstantHeadingInterpolation(turnPose.getHeading())
                 .build();
+        gatePush = follower.pathBuilder()
+                .addPath(new BezierCurve(pickup1Pose, (new Pose(107, 73)).mirror(), gatePose))
+                .setConstantHeadingInterpolation(pickup1Pose.getHeading())
+                .build();
+
         grabPickup1 = follower.pathBuilder()
-                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(),  pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(), pickup1Pose))
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
 
         scorePickup1 = follower.pathBuilder()
-                .addPath(new BezierLine(pickup1Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), Math.toRadians(140))
+                .addPath(new BezierLine(gatePose, scorePose))
+                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(138))//140
                 .build();
 
         grabPickup2 = follower.pathBuilder()
@@ -102,8 +110,12 @@ public class NineBallBlueLL extends OpMode {
                 .build();
 
         grabPickup3 = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, pickup3Pose))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
+                .addPath(new BezierLine(scorePose, pickup4Pose))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup4Pose.getHeading())
+                .build();
+        runPickup2 = follower.pathBuilder()
+                .addPath(new BezierLine(pickup4Pose, pickup5Pose))
+                .setConstantHeadingInterpolation(pickup4Pose.getHeading())
                 .build();
 
         backUp = follower.pathBuilder()
@@ -114,23 +126,31 @@ public class NineBallBlueLL extends OpMode {
                 .addPath(new BezierLine(scorePose, park))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), park.getHeading())
                 .build();
+        scorePickup3 = follower.pathBuilder()
+                .addPath(new BezierLine(pickup5Pose, scorePose))
+                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(138))
+                .build();
     }
 
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
+                spinUpShooter();
                 follower.followPath(scorePreload, true);
                 setPathState(1);
                 break;
 
             case 1:
+                // SHOOTING CYCLE 1 - Arrive at score position
                 if (!follower.isBusy()) {
                     if (AprilTagfound(20)) {
                         telemetry.addLine("AprilTag 20 found - starting alignment");
+                        telemetry.update();
                         alignTimer.resetTimer();
                         setPathState(2);
                     } else {
                         telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
+                        telemetry.update();
                         spinUpShooter();
                         setPathState(3);
                     }
@@ -138,28 +158,25 @@ public class NineBallBlueLL extends OpMode {
                 break;
 
             case 2:
-                // Aim only
+                // SHOOTING CYCLE 1 - Aim only
                 boolean aimAligned = autoAim();
-                spinUpShooter(); // Continue spinning up while aiming
+                spinUpShooter();
 
                 if (aimAligned) {
-                    telemetry.addLine("Aiming complete - stopping motors");
+
                     stopDriveMotors();
                     setPathState(3);
                 } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
-                    telemetry.addLine("Aiming timeout - stopping motors");
                     stopDriveMotors();
                     setPathState(3);
                 }
                 break;
 
             case 3:
-                // Wait for shooter to reach target RPM, then shoot
+                // SHOOTING CYCLE 1 - Wait for shooter, then shoot
                 stopDriveMotors();
                 spinUpShooter();
-
                 if (isShooterReady()) {
-                    telemetry.addLine("Shooter ready - shooting balls");
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
@@ -172,10 +189,8 @@ public class NineBallBlueLL extends OpMode {
                         pathTimer.resetTimer();
                         while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
-                    blockServo.setPosition(blockServoDown);
 
+                    blockServo.setPosition(blockServoDown);
                     follower.followPath(grabPickup1, 0.6, true);
                     setPathState(4);
                 }
@@ -183,45 +198,63 @@ public class NineBallBlueLL extends OpMode {
 
             case 4:
                 if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
                     intakeMotor.setPower(0);
-                    follower.followPath(scorePickup1, 0.8, true);
+                    follower.followPath(gatePush, 0.8, true);
                     setPathState(5);
                 }
                 break;
 
             case 5:
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(20)) {
-                        alignTimer.resetTimer();
-                        setPathState(6);
-                    } else {
-                        spinUpShooter();
-                        setPathState(7);
-                    }
+                    intakeMotor.setPower(0);
+                    follower.followPath(scorePickup1, 0.8, true);
+                    setPathState(6);
                 }
                 break;
 
             case 6:
-                // Aim only
-                boolean aimAligned2 = autoAim();
-                spinUpShooter();
-
-                if (aimAligned2 || alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
-                    stopDriveMotors();
-                    setPathState(7);
+                // SHOOTING CYCLE 2 - Arrive at score position
+                if (!follower.isBusy()) {
+                    if (AprilTagfound(20)) {
+                        telemetry.addLine("AprilTag 20 found - starting alignment");
+                        telemetry.update();
+                        alignTimer.resetTimer();
+                        setPathState(7);
+                    } else {
+                        telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
+                        telemetry.update();
+                        spinUpShooter();
+                        setPathState(8);
+                    }
                 }
                 break;
 
             case 7:
-                // Wait for shooter, then shoot
-                stopDriveMotors();
+                // SHOOTING CYCLE 2 - Aim only
+                boolean aimAligned2 = autoAim();
                 spinUpShooter();
 
+
+                if (aimAligned2) {
+                    stopDriveMotors();
+                    setPathState(8);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+                    stopDriveMotors();
+                    setPathState(8);
+                }
+                break;
+
+            case 8:
+                // SHOOTING CYCLE 2 - Wait for shooter, then shoot
+                stopDriveMotors();
+                spinUpShooter();
                 if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
-                    intakeMotor.setPower(-1);
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -230,72 +263,78 @@ public class NineBallBlueLL extends OpMode {
                         pathTimer.resetTimer();
                         while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
-
-                    follower.followPath(grabPickup2, true);
                     blockServo.setPosition(blockServoDown);
-                    setPathState(8);
-                }
-                break;
-
-            case 8:
-                if (!follower.isBusy()) {
-                    follower.followPath(runPickup);
+                    follower.followPath(grabPickup2, true);
                     setPathState(9);
                 }
                 break;
 
             case 9:
                 if (!follower.isBusy()) {
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.3) {}
-                    follower.followPath(backUp);
+                    follower.followPath(runPickup);
                     setPathState(10);
                 }
                 break;
 
             case 10:
                 if (!follower.isBusy()) {
-                    follower.followPath(scorePickup2, 0.8, true);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.3) {}
+                    follower.followPath(backUp);
                     setPathState(11);
                 }
                 break;
 
             case 11:
                 if (!follower.isBusy()) {
-                    if (AprilTagfound(20)) {
-                        alignTimer.resetTimer();
-                        setPathState(12);
-                    } else {
-                        spinUpShooter();
-                        setPathState(13);
-                    }
+                    follower.followPath(scorePickup2, 0.8, true);
+                    setPathState(12);
                 }
                 break;
 
             case 12:
-                // Aim only
-                boolean aimAligned3 = autoAim();
-                spinUpShooter();
-
-                if (aimAligned3 || alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
-                    stopDriveMotors();
-                    setPathState(13);
+                // SHOOTING CYCLE 3 - Arrive at score position
+                if (!follower.isBusy()) {
+                    if (AprilTagfound(20)) {
+                        telemetry.addLine("AprilTag 20 found - starting alignment");
+                        telemetry.update();
+                        alignTimer.resetTimer();
+                        setPathState(13);
+                    } else {
+                        telemetry.addLine("WARNING: AprilTag 20 not found - shooting without alignment");
+                        telemetry.update();
+                        spinUpShooter();
+                        setPathState(14);
+                    }
                 }
                 break;
 
             case 13:
-                // Wait for shooter, then shoot
-                stopDriveMotors();
+                // SHOOTING CYCLE 3 - Aim only
+                boolean aimAligned3 = autoAim();
                 spinUpShooter();
 
+
+                if (aimAligned3) {
+
+                    stopDriveMotors();
+                    setPathState(14);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
+                    stopDriveMotors();
+                    setPathState(14);
+                }
+                break;
+
+            case 14:
+                // SHOOTING CYCLE 3 - Wait for shooter, then shoot
+                stopDriveMotors();
+                spinUpShooter();
                 if (isShooterReady()) {
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
-
                     for (int x = 0; x < 3; x++) {
                         pushServo.setPosition(pushServoUp);
                         pathTimer.resetTimer();
@@ -304,17 +343,83 @@ public class NineBallBlueLL extends OpMode {
                         pathTimer.resetTimer();
                         while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     }
-
-                    pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     blockServo.setPosition(blockServoDown);
-                    follower.followPath(parkRun, true);
-                    setPathState(14);
+                    follower.followPath(grabPickup3, true);
+                    setPathState(15);
                 }
                 break;
 
-            case 14:
+            case 15:
                 if (!follower.isBusy()) {
+                    follower.followPath(runPickup2, 0.9, true);
+                    setPathState(16);
+                }
+                break;
+
+            case 16:
+                if (!follower.isBusy()) {
+                    follower.followPath(scorePickup3, 0.9, true);
+                    setPathState(17);
+                }
+                break;
+
+            case 17:
+                // SHOOTING CYCLE 4 - Arrive at score position
+                if (!follower.isBusy()) {
+                    if (AprilTagfound(20)) {
+
+                        alignTimer.resetTimer();
+                        setPathState(18);
+                    } else {
+
+                        spinUpShooter();
+                        setPathState(19);
+                    }
+                }
+                break;
+            case 18:
+                // SHOOTING CYCLE 4 - Aim only
+                boolean aimAligned4 = autoAim();
+                spinUpShooter();
+
+
+                if (aimAligned4) {
+
+                    stopDriveMotors();
+                    setPathState(19);
+                } else if (alignTimer.getElapsedTimeSeconds() > MAX_ALIGN_TIME) {
+
+                    stopDriveMotors();
+                    setPathState(19);
+                }
+                break;
+            case 19:
+                // SHOOTING CYCLE 4 - Wait for shooter, then shoot
+                stopDriveMotors();
+                spinUpShooter();
+
+                if (isShooterReady()) {
+                    intakeMotor.setPower(-1);
+                    blockServo.setPosition(blockServoUp);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.025) {}
+                    for (int x = 0; x < 3; x++) {
+                        pushServo.setPosition(pushServoUp);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                        pushServo.setPosition(pushServoDown);
+                        pathTimer.resetTimer();
+                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    }
+                    pathTimer.resetTimer();
+                    blockServo.setPosition(blockServoDown);
+                    setPathState(20);
+                }
+                break;
+
+            case 20:
+                if (!follower.isBusy()) {
+                    follower.followPath(parkRun, true);
                     setPathState(-1);
                 }
                 break;
@@ -337,10 +442,9 @@ public class NineBallBlueLL extends OpMode {
     public void loop() {
         follower.update();
         autonomousPathUpdate();
+
         telemetry.addData("Aim Done:", aimPid.atSetPoint());
         telemetry.addData("Shooter Ready:", isShooterReady());
-        telemetry.addData("Tx Error", getTx());
-        telemetry.addData("Shooter RPM", shootMotor.getVelocity());
         telemetry.addData("path state", pathState);
         telemetry.addData("x", follower.getPose().getX());
         telemetry.addData("y", follower.getPose().getY());

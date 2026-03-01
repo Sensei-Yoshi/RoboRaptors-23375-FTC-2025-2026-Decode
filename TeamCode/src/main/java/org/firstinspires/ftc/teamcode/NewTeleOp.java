@@ -28,43 +28,38 @@ public class NewTeleOp extends LinearOpMode {
     private enum AutoState { IDLE, AIMING, SPINNING, FIRING }
     private com.arcrobotics.ftclib.controller.PIDFController aimPid;
     private AutoState autoState = AutoState.IDLE;
-    private ElapsedTime pushTimer1 = new ElapsedTime();
     ElapsedTime fireDelayTimer = new ElapsedTime();
     boolean fireDelayActive = false;
 
     DcMotorEx shootMotor, intakeMotor;
-    Servo hoodServo, pushServo, blockServo, light;
+    Servo hoodServo, blockServo, light;
     InterpLUT controlPointsRPM = new InterpLUT();
     InterpLUT controlPointsHood = new InterpLUT();
     DcMotor leftFrontDrive = null;
     DcMotor leftBackDrive = null;
     DcMotor rightFrontDrive = null;
     DcMotor rightBackDrive = null;
-    private DcMotor liftMotor = null;
+    private DcMotorEx liftMotor = null;
+    private Servo pushServo = null;
 
 
     double hoodPos = 0.40;
 
     Limelight3A limelight;
-    ElapsedTime pushTimer = new ElapsedTime();
-    boolean isPushing = false;
-    boolean isPushingManual = false;
+    ElapsedTime blockTimer = new ElapsedTime();
+    boolean isBlocking = false;
     boolean autoAimActive = false;
     boolean shooterReady = false;
     boolean aimReady = false;
 
     int intakeOn = 0;
-    int shots = 0;
-    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.5;
-
     final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
     final double blockServoUp = 0.25;
 
     public static double Kp = 0.02;
     public static double Ki = 0.0;
     public static double Kd = 0.003;
-    public static double Kf = 0.15;
+    public static double Kf = 0.18;
     double targetPose = 0;
     public static double rpmTolerance = 150;
     public static double aimTolerance = 1.5;
@@ -98,7 +93,10 @@ public class NewTeleOp extends LinearOpMode {
     // Roughly the midpoint of the RPM and hood LUTs.
     public static double IDLE_RPM = 1200;
     public static double IDLE_HOOD = 0.520;
+    final double pushServoDown = 0.9;
 
+    // Block servo open duration for shooting
+    public static double BLOCK_OPEN_DURATION_MS = 1000;
 
 
 
@@ -108,15 +106,15 @@ public class NewTeleOp extends LinearOpMode {
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
-        pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
+        pushServo = hardwareMap.get(Servo.class, "pushServo");
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         leftFrontDrive = hardwareMap.get(DcMotor.class, "left_front_drive");
         leftBackDrive = hardwareMap.get(DcMotor.class, "left_back_drive");
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         light = hardwareMap.get(Servo.class, "light");
-        liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
+        liftMotor = hardwareMap.get(DcMotorEx.class, "liftMotor");
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
@@ -133,9 +131,13 @@ public class NewTeleOp extends LinearOpMode {
 
         shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new com.qualcomm.robotcore.hardware.PIDFCoefficients(300, 0, 0, 10));
+        liftMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        liftMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new com.qualcomm.robotcore.hardware.PIDFCoefficients(300, 0, 0, 10));
+        liftMotor.setDirection(DcMotorEx.Direction.REVERSE);
         hoodServo.setPosition(hoodPos);
-        pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
+        pushServo.setPosition(pushServoDown);
+
         createHoodControlPoints();
         createRPMControlPoints();
 
@@ -153,6 +155,7 @@ public class NewTeleOp extends LinearOpMode {
                 if (!shooterOverride) {
                     // Turn shooter OFF
                     shootMotor.setVelocity(0);
+                    liftMotor.setVelocity(0);
                     shooterOverride = true;
                     gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
                 } else {
@@ -275,14 +278,17 @@ public class NewTeleOp extends LinearOpMode {
             if (manualOverride) {
                 // Manual override always uses its fixed values
                 shootMotor.setVelocity(MANUAL_RPM);
+                liftMotor.setVelocity(MANUAL_RPM);
                 hoodServo.setPosition(MANUAL_HOOD);
             } else if (!shooterOverride) {
                 shootMotor.setVelocity(targetRPM);
+                liftMotor.setVelocity(targetRPM);
                 hoodServo.setPosition(hoodTarget);
                 lastAutoRPM = targetRPM;
             } else {
                 // Shooter override - OFF
                 shootMotor.setVelocity(0);
+                liftMotor.setVelocity(0);
             }
 
             switch (autoState) {
@@ -311,69 +317,41 @@ public class NewTeleOp extends LinearOpMode {
                         firingArmed = false;
                         velocityLocked = false;
                         blockDelayActive = false;
-                        shots = 0;
+                        isBlocking = false;
                         blockServo.setPosition(blockServoDown);
                         break;
                     }
-                    // velocityLocked is already true from button press
 
-                    // Step 2 – Open blocker and wait before pushing
-                    if (!blockDelayActive) {
+                    // Start the blocking sequence
+                    if (!isBlocking) {
+                        isBlocking = true;
+                        blockTimer.reset();
                         blockServo.setPosition(blockServoUp);
-                        blockDelayTimer.reset();
-                        blockDelayActive = true;
-                        break;
                     }
 
-                    if (blockDelayTimer.milliseconds() < BLOCK_OPEN_DELAY) break;
-
-                    // Step 3 – Arm firing
-                    if (!firingArmed) {
-                        firingArmed = true;
-                        shots = 3;
-                    }
-
-                    if (shots == 0) {
-                        firingArmed = false;
-                        velocityLocked = false;  // Unlock — shooter returns to live distance tracking
-                        blockDelayActive = false;
+                    // Check if block duration has elapsed
+                    if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
+                        // Close block servo and end firing sequence
+                        blockServo.setPosition(blockServoDown);
+                        isBlocking = false;
+                        velocityLocked = false;  // Unlock — shooter returns to idle
                         autoState = AutoState.IDLE;
                     }
                     break;
             }
 
-            if (shots > 0 && !isPushing) {
-                isPushing = true;
-                pushTimer1.reset();
-                pushServo.setPosition(pushServoUp);
-            }
-
-            if (isPushing) {
-                double t = pushTimer1.milliseconds();
-                if (t <= 150) { //delay time
-                    pushServo.setPosition(pushServoUp);
-                } else if (t <= 300) {
-                    pushServo.setPosition(pushServoDown);
-                } else {
-                    isPushing = false;
-                    shots--;
-                    if (shots == 0) {
-                        blockServo.setPosition(blockServoDown);
-                    }
-                }
-            }
-
-            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
-                isPushingManual = true;
-                pushTimer.reset();
-                pushServo.setPosition(pushServoUp);
+            // Manual block servo control with right bumper
+            if (gamepad1.rightBumperWasPressed() && !isBlocking) {
+                isBlocking = true;
+                blockTimer.reset();
                 blockServo.setPosition(blockServoUp);
             }
-            if (isPushingManual) {
-                if (pushTimer.milliseconds() > 400) {
-                    pushServo.setPosition(pushServoDown);
+
+            if (isBlocking && autoState == AutoState.IDLE) {
+                // Manual block servo control (only when not in auto firing)
+                if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
                     blockServo.setPosition(blockServoDown);
-                    isPushingManual = false;
+                    isBlocking = false;
                 }
             }
 
@@ -392,6 +370,7 @@ public class NewTeleOp extends LinearOpMode {
             telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
             telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
             telemetry.addData("TX", "%.3f", getTx(24));
+            telemetry.addData("Block Timer", "%.0f ms", blockTimer.milliseconds());
             telemetry.update();
         }
     }
@@ -423,7 +402,7 @@ public class NewTeleOp extends LinearOpMode {
         if (distance < 22) return 23;
 
         // Normal range
-        if (distance <= 80) return distance;
+        if (distance <= 85) return distance;
 
         // Hold at 80 until we reach far range
         if (distance < 110) return 79;
@@ -446,13 +425,14 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(35, 1100);
         controlPointsRPM.add(40, 1130);
         controlPointsRPM.add(45, 1180);
-        controlPointsRPM.add(50, 1200);
-        controlPointsRPM.add(55, 1230);
-        controlPointsRPM.add(60, 1230);
-        controlPointsRPM.add(65, 1230);
-        controlPointsRPM.add(70, 1270);
-        controlPointsRPM.add(75, 1410);
-        controlPointsRPM.add(80, 1490);
+        controlPointsRPM.add(50, 1280);
+        controlPointsRPM.add(55, 1280);
+        controlPointsRPM.add(60, 1280);
+        controlPointsRPM.add(65, 1280);
+        controlPointsRPM.add(70, 1400);
+        controlPointsRPM.add(75, 1400);
+        controlPointsRPM.add(80, 1500);
+        controlPointsRPM.add(85, 1500);
         controlPointsRPM.add(110, 1640);
         controlPointsRPM.add(115, 1640);
         controlPointsRPM.add(120, 1650);
@@ -470,13 +450,14 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(35, 0.482);
         controlPointsHood.add(40, 0.482);
         controlPointsHood.add(45, 0.482);
-        controlPointsHood.add(50, 0.484);
-        controlPointsHood.add(55, 0.490);
-        controlPointsHood.add(60, 0.490);
-        controlPointsHood.add(65, 0.497);
-        controlPointsHood.add(70, 0.500);
-        controlPointsHood.add(75, 0.500);
-        controlPointsHood.add(80, 0.514);
+        controlPointsHood.add(50, 0.482);
+        controlPointsHood.add(55, 0.486);
+        controlPointsHood.add(60, 0.486);
+        controlPointsHood.add(65, 0.495);
+        controlPointsHood.add(70, 0.498);
+        controlPointsHood.add(75, 0.498);
+        controlPointsHood.add(80, 0.510);
+        controlPointsHood.add(85, 0.510);
         controlPointsHood.add(110, 0.522);
         controlPointsHood.add(115, 0.522);
         controlPointsHood.add(120, 0.524);

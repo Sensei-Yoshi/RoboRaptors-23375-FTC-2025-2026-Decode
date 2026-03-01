@@ -64,7 +64,7 @@ public class TeleOpBlue extends LinearOpMode {
     public static double Kp = 0.020;
     public static double Ki = 0.0;
     public static double Kd = 0.003;
-    public static double Kf = 0.15;
+    public static double Kf = 0.18;
     double targetPose = 0;
     public static double rpmTolerance = 150;
     public static double aimTolerance = 1.5;

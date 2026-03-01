@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.Testing;
 
 
 import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
@@ -11,8 +11,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
-@com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "Linear Opmode")
-public class TeleOp extends LinearOpMode {
+@com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "Lift", group = "Linear Opmode")
+public class Lifting extends LinearOpMode {
 
 
     private ElapsedTime pushTimer1 = new ElapsedTime();
@@ -44,7 +44,6 @@ public class TeleOp extends LinearOpMode {
     final double hoodServoFar = 0.52;
 
 
-
     @Override
     public void runOpMode() {
 
@@ -54,7 +53,7 @@ public class TeleOp extends LinearOpMode {
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
         rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
-        pushServo = hardwareMap.get(Servo.class, "pushServo");
+        //pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
         liftMotor = hardwareMap.get(DcMotorEx.class, "liftMotor");
@@ -69,8 +68,8 @@ public class TeleOp extends LinearOpMode {
 
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
-        liftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        liftMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        //liftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        //liftMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
 
 
         leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -82,17 +81,16 @@ public class TeleOp extends LinearOpMode {
         telemetry.addData("Status", "Initialized");
         telemetry.update();
         int intakeOn = 0, shots = 0;
-        pushServo.setPosition(pushServoDown);
+        //pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
         hoodServo.setPosition(hoodServoClose); //0.53
         waitForStart();
         boolean shooterOverride = false;
         double lastShooterVelocity = closeLaunch;
         boolean isPushingManual = false, isPushing = false, shootingState = false, flyWheelOn = true, isWaitingBeforeFirstShot = false;
-        shootMotor.setVelocity(closeLaunch);
-        liftMotor.setVelocity(closeLaunch);
+        //shootMotor.setVelocity(closeLaunch);
+        //liftMotor.setVelocity(closeLaunch);
         gamepad1.setLedColor(1, 0, 0, LED_DURATION_CONTINUOUS); //set color of gamepad
-
 
 
         while (opModeIsActive()) {
@@ -106,7 +104,7 @@ public class TeleOp extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            //liftMotor.setPower(gamepad2.left_stick_y);
+            liftMotor.setPower(gamepad2.left_stick_y);
 
             //liftMotor.setTargetPosition(-1119);
             //liftMotor.setPower(0.8);
@@ -115,10 +113,10 @@ public class TeleOp extends LinearOpMode {
 
 
 
-        leftFrontDrive.setPower(leftFrontPower);
-        leftBackDrive.setPower(leftBackPower);
-      rightFrontDrive.setPower(rightFrontPower);
-      rightBackDrive.setPower(rightBackPower);
+          /*  leftFrontDrive.setPower(leftFrontPower);
+            leftBackDrive.setPower(leftBackPower);
+            rightFrontDrive.setPower(rightFrontPower);
+            rightBackDrive.setPower(rightBackPower);
 
 
             if (gamepad1.circleWasPressed())
@@ -217,9 +215,13 @@ public class TeleOp extends LinearOpMode {
                 }
             }
 
-            }
         }
     }
+
+           */
+        }
+    }
+}
 /*
             if (gamepad1.left_bumper){
                 if (!shootingState){
@@ -269,4 +271,5 @@ public class TeleOp extends LinearOpMode {
 
 
  */
+
 

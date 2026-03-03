@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 public class PedroAuto extends OpMode {
     final double pushServoDown = 0.89;
     final double pushServoUp = 0.88;
-    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoDown = 0.75; //if two balls are shooting at once: <0.81 == up and >0.81 == down
     final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));

@@ -5,7 +5,8 @@ import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.arcrobotics.ftclib.controller.PIDFController;
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PIDFController;
 import com.arcrobotics.ftclib.util.InterpLUT;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -49,17 +50,19 @@ public class NewTeleOp extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Shooter PV constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double kS      = 0.09;    // static / friction offset
-    public static double kV      = 0.00038; // velocity feedforward (power per tick/s)
-    public static double kP      = 0.01;    // proportional error gain
-        // lift motor static offset (tune separately)
+    public static double kS = 0.09;     // static / friction offset
+    public static double kV = 0.0004;  // velocity feedforward (power per tick/s)
+    public static double kP = 0.01;     // proportional error gain
 
     // ─────────────────────────────────────────────
-    //  Aim PID constants  (tune via Dashboard)
+    //  Aim PIDF constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double Kp_aim = 0.03;
-    public static double Kd_aim = 0.0045;
-    public static double Kf_aim = 0.18;    // sign-based static friction for rotation
+    public static double Kp_aim  = 0.02;
+    public static double Ki_aim  = 0.0;
+    public static double Kd_aim  = 0.008;
+    public static double Kf_aim  = 0.18;  // feedforward (sign-based static friction)
+    public static double aimTolerance = 2.0;
+
     private PIDFController aimPid;
 
     // ─────────────────────────────────────────────
@@ -72,15 +75,17 @@ public class NewTeleOp extends LinearOpMode {
     public static double MANUAL_HOOD = 0.48;
 
     public static double rpmTolerance = 50;
-    public static double aimTolerance = 1.5;
 
     // ─────────────────────────────────────────────
     //  Block servo
     // ─────────────────────────────────────────────
-    private static final double BLOCK_SERVO_DOWN     = 0.78;
-    private static final double BLOCK_SERVO_UP       = 0.25;
-    private static final double PUSH_SERVO_DOWN      = 0.9;
-    public  static       double BLOCK_OPEN_DURATION_MS = 1000;
+    private static final double BLOCK_SERVO_DOWN       = 0.78;
+    private static final double BLOCK_SERVO_UP         = 0.25;
+    private static final double PUSH_SERVO_DOWN        = 0.9;
+    public  static       double BLOCK_OPEN_DURATION_MS = 1200;
+
+    // Intake speed used when resuming during FIRING at long range (> 110 in)
+    public static double LONG_RANGE_INTAKE_SPEED = -0.65;
 
     private final ElapsedTime blockTimer = new ElapsedTime();
     private boolean isBlocking = false;
@@ -88,8 +93,8 @@ public class NewTeleOp extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Limelight / distance state
     // ─────────────────────────────────────────────
-    private static final long TARGET_HOLD_MS           = 30;
-    private static final long CAMERA_BLOCK_TIMEOUT_MS  = 400;
+    private static final long TARGET_HOLD_MS          = 30;
+    private static final long CAMERA_BLOCK_TIMEOUT_MS = 400;
 
     private double lastTx                 = 0.0;
     private long   lastSeenTimeMs         = 0;
@@ -110,9 +115,10 @@ public class NewTeleOp extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Mode flags
     // ─────────────────────────────────────────────
-    private boolean shooterOverride = false; // true = shooter OFF
-    private boolean manualOverride  = false; // true = fixed RPM/hood
-    private int     intakeOn        = 0;     // 0=off, 1=in, 2=out
+    private boolean shooterOverride     = false; // true = shooter OFF
+    private boolean manualOverride      = false; // true = fixed RPM/hood
+    private int     intakeOn            = 0;     // 0=off, 1=in, 2=out
+    private int     preShootIntakeState = 0;     // saved intake state before shoot sequence
 
     // ─────────────────────────────────────────────
     //  Misc
@@ -128,11 +134,8 @@ public class NewTeleOp extends LinearOpMode {
         initHardware();
         buildLookupTables();
 
-        aimPid = new PIDFController(Kp_aim, 0, Kd_aim, 0);
-        aimPid.setTolerance(aimTolerance);
-        aimPid.setSetPoint(0);
+        aimPid = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
 
-        // Send telemetry to both the Driver Station and FTC Dashboard simultaneously
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         waitForStart();
@@ -156,8 +159,10 @@ public class NewTeleOp extends LinearOpMode {
                     abortSequence("blocked during aim");
                 } else {
                     double error = getTx(24);
-                    yaw = (-aimPid.calculate(error)) + (Kf_aim * Math.signum(error));
-                    if (aimPid.atSetPoint()) {
+                    aimPid.updateError(error);
+                    aimPid.updateFeedForwardInput(Math.signum(error));
+                    yaw = aimPid.run();
+                    if (Math.abs(error) < aimTolerance) {
                         autoState = AutoState.SPINNING;
                         axial     = 0;
                         lateral   = 0;
@@ -199,7 +204,7 @@ public class NewTeleOp extends LinearOpMode {
     private void initHardware() {
         shootMotor  = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
-        shootMotor2   = hardwareMap.get(DcMotorEx.class, "liftMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor");
 
         hoodServo  = hardwareMap.get(Servo.class, "hoodServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
@@ -226,8 +231,6 @@ public class NewTeleOp extends LinearOpMode {
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        // Shooter motors — RUN_WITHOUT_ENCODER so we drive power manually.
-        // DcMotorEx.getVelocity() still works regardless of run mode.
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
@@ -235,7 +238,6 @@ public class NewTeleOp extends LinearOpMode {
         // Servo starting positions
         hoodServo.setPosition(0.40);
         blockServo.setPosition(BLOCK_SERVO_DOWN);
-
 
         // Limelight
         limelight.start();
@@ -267,23 +269,29 @@ public class NewTeleOp extends LinearOpMode {
             }
         }
 
-        // Circle/Square: intake toggle
-        if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
-        if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
+        // Circle/Square: intake toggle — only allowed when not in a shoot sequence
+        if (autoState == AutoState.IDLE) {
+            if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
+            if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
 
-        switch (intakeOn) {
-            case 1:  intakeMotor.setPower(-1); break;
-            case 2:  intakeMotor.setPower( 1); break;
-            default: intakeMotor.setPower( 0); break;
+            switch (intakeOn) {
+                case 1:  intakeMotor.setPower(-1); break;
+                case 2:  intakeMotor.setPower( 1); break;
+                default: intakeMotor.setPower( 0); break;
+            }
         }
     }
 
     // =========================================================
     //  Shoot sequence initiation
-    //  Returns (possibly modified) yaw for this loop iteration.
+    //  Saves intake state, kills intake, then transitions to
+    //  AIMING (auto) or SPINNING (manual).
     // =========================================================
     private double startShootSequence(double yaw) {
         if (manualOverride) {
+            preShootIntakeState = intakeOn;
+            intakeOn = 0;
+            intakeMotor.setPower(0);
             velocityLocked = true;
             lockedRPM      = MANUAL_RPM;
             lockedHood     = MANUAL_HOOD;
@@ -294,10 +302,15 @@ public class NewTeleOp extends LinearOpMode {
                 hasRumbledForBlock = true;
             }
         } else {
+            preShootIntakeState = intakeOn;
+            intakeOn = 0;
+            intakeMotor.setPower(0);
             distance           = clampDistance(getStableDistance());
             velocityLocked     = true;
             lockedRPM          = controlPointsRPM.get(distance);
             lockedHood         = controlPointsHood.get(distance);
+            // Reset PID so stale integral/derivative don't kick the robot on entry
+            aimPid = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
             autoState          = AutoState.AIMING;
             hasRumbledForBlock = false;
         }
@@ -317,20 +330,13 @@ public class NewTeleOp extends LinearOpMode {
 
     // =========================================================
     //  PV Shooter controller
+    //
+    //   power = kS  +  kV × target  +  kP × (target − actual)
+    //
+    //   kS  — overcomes static friction
+    //   kV  — open-loop feedforward; maps target velocity to approximate power
+    //   kP  — proportional term that closes the loop on remaining velocity error
     // =========================================================
-
-    /**
-     * Computes and applies motor power using a feedforward + proportional (PV) controller:
-     *
-     *   power = kS  +  kV × target  +  kP × (target − actual)
-     *
-     *   kS  — overcomes static friction so the motor doesn't stall at startup
-     *   kV  — open-loop feedforward; maps target velocity directly to approximate power
-     *   kP  — proportional term that closes the loop on remaining velocity error
-     *
-     * Because kV handles most of the work, kP only needs to correct small residuals,
-     * so no integrator (I) or derivative (D) term is necessary for flywheel control.
-     */
     private void setShooterPV(double targetRPM) {
         if (targetRPM <= 0 || shooterOverride) {
             shootMotor.setPower(0);
@@ -338,13 +344,11 @@ public class NewTeleOp extends LinearOpMode {
             return;
         }
 
-        double shootVel  = shootMotor.getVelocity();
-
-
+        double shootVel   = shootMotor.getVelocity();
         double shootPower = kS + (kV * targetRPM) + (kP * (targetRPM - shootVel));
 
         shootMotor.setPower(clamp(shootPower, -1, 1));
-        shootMotor2.setPower(clamp(shootPower,  -1, 1));
+        shootMotor2.setPower(clamp(shootPower, -1, 1));
     }
 
     /** Returns true when shooter velocity is within rpmTolerance of target. */
@@ -372,6 +376,7 @@ public class NewTeleOp extends LinearOpMode {
         switch (autoState) {
 
             case SPINNING:
+                // Intake is off during spin-up (killed in startShootSequence)
                 if (cameraBlocked && !manualOverride) {
                     abortSequence("blocked during spin");
                 } else if (atRPMTarget(targetRPM)) {
@@ -384,20 +389,36 @@ public class NewTeleOp extends LinearOpMode {
                     blockServo.setPosition(BLOCK_SERVO_DOWN);
                     isBlocking = false;
                     abortSequence("blocked during fire");
+                    // Restore intake state on abort
+                    intakeOn = preShootIntakeState;
+                    applyIntakePower();
                     break;
                 }
-                // Open block servo once at entry
+
+                // Open block servo once at entry, and resume intake
                 if (!isBlocking) {
                     isBlocking = true;
                     blockTimer.reset();
                     blockServo.setPosition(BLOCK_SERVO_UP);
+
+                    // Resume intake — speed depends on distance
+                    if (distance > 110) {
+                        intakeMotor.setPower(LONG_RANGE_INTAKE_SPEED);
+                    } else {
+                        intakeMotor.setPower(-1.0);
+                    }
+                    intakeOn = 1; // mark as running so state is consistent
                 }
+
                 // Close after duration and return to IDLE
                 if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
                     blockServo.setPosition(BLOCK_SERVO_DOWN);
                     isBlocking     = false;
                     velocityLocked = false;
                     autoState      = AutoState.IDLE;
+                    // Restore the intake state that was active before the shot
+                    intakeOn = preShootIntakeState;
+                    applyIntakePower();
                 }
                 break;
 
@@ -406,7 +427,19 @@ public class NewTeleOp extends LinearOpMode {
         }
     }
 
-    /** Cancel any active shoot sequence and return shooter to idle. */
+    /**
+     * Applies motor power matching the current intakeOn state.
+     * Called whenever intakeOn is restored after a shoot sequence.
+     */
+    private void applyIntakePower() {
+        switch (intakeOn) {
+            case 1:  intakeMotor.setPower(-1); break;
+            case 2:  intakeMotor.setPower( 1); break;
+            default: intakeMotor.setPower( 0); break;
+        }
+    }
+
+    /** Cancel any active shoot sequence and return to idle. */
     private void abortSequence(String reason) {
         if (!hasRumbledForBlock) {
             gamepad1.rumble(1.0, 1.0, 500);
@@ -532,8 +565,8 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsRPM.add(75,  1380);
         controlPointsRPM.add(80,  1430);
         controlPointsRPM.add(85,  1430);
-        controlPointsRPM.add(110, 1560);
-        controlPointsRPM.add(115, 1560);
+        controlPointsRPM.add(110, 1610);
+        controlPointsRPM.add(115, 1610);
         controlPointsRPM.add(120, 1620);
         controlPointsRPM.add(125, 1620);
         controlPointsRPM.add(130, 1650);
@@ -555,12 +588,12 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(75,  0.498);
         controlPointsHood.add(80,  0.510);
         controlPointsHood.add(85,  0.510);
-        controlPointsHood.add(110, 0.522);
-        controlPointsHood.add(115, 0.522);
-        controlPointsHood.add(120, 0.535);
-        controlPointsHood.add(125, 0.535);
-        controlPointsHood.add(130, 0.528);
-        controlPointsHood.add(135, 0.526);
+        controlPointsHood.add(110, 0.542);
+        controlPointsHood.add(115, 0.542);
+        controlPointsHood.add(120, 0.546);
+        controlPointsHood.add(125, 0.546);
+        controlPointsHood.add(130, 0.546);
+        controlPointsHood.add(135, 0.546);
         controlPointsHood.createLUT();
     }
 
@@ -575,14 +608,18 @@ public class NewTeleOp extends LinearOpMode {
         double txAngle    = getTx(24);
 
         // ── State ──────────────────────────────────────────────────────────
-        // Dashboard renders strings as labels, not graphs — fine for mode flags.
         telemetry.addData("State/AutoState",      autoState.toString());
         telemetry.addData("State/ManualOverride",  manualOverride);
         telemetry.addData("State/ShooterOFF",      shooterOverride);
         telemetry.addData("State/CameraBlocked",   cameraBlocked);
         telemetry.addData("State/VelocityLocked",  velocityLocked);
 
-        // ── Shooter — these show as live graphs on the Dashboard ───────────
+        // ── Intake ─────────────────────────────────────────────────────────
+        telemetry.addData("Intake/State",          intakeOn);
+        telemetry.addData("Intake/PreShootState",  preShootIntakeState);
+        telemetry.addData("Intake/Power",          intakeMotor.getPower());
+
+        // ── Shooter ────────────────────────────────────────────────────────
         telemetry.addData("Shooter/TargetRPM",     targetRPM);
         telemetry.addData("Shooter/ActualRPM",     actualRPM);
         telemetry.addData("Shooter/LiftRPM",       liftRPM);
@@ -596,22 +633,22 @@ public class NewTeleOp extends LinearOpMode {
         telemetry.addData("Hood/Target",           hoodTarget);
         telemetry.addData("Hood/Position",         hoodServo.getPosition());
 
-        // ── PV Gains — live view confirms Dashboard config changes applied ─
+        // ── PV Gains ───────────────────────────────────────────────────────
         telemetry.addData("PV/kS",                 kS);
         telemetry.addData("PV/kV",                 kV);
         telemetry.addData("PV/kP",                 kP);
-        // Computed contributions (useful for understanding each term's weight)
         telemetry.addData("PV/term_kS",            kS);
         telemetry.addData("PV/term_kV",            kV * targetRPM);
         telemetry.addData("PV/term_kP",            kP * rpmError);
 
-        // ── Aim PID ────────────────────────────────────────────────────────
+        // ── Aim PIDF ───────────────────────────────────────────────────────
         telemetry.addData("Aim/TX_degrees",        txAngle);
         telemetry.addData("Aim/Yaw_output",        yaw);
         telemetry.addData("Aim/Kp",                Kp_aim);
+        telemetry.addData("Aim/Ki",                Ki_aim);
         telemetry.addData("Aim/Kd",                Kd_aim);
         telemetry.addData("Aim/Kf",                Kf_aim);
-        telemetry.addData("Aim/AtSetPoint",        aimPid.atSetPoint());
+        telemetry.addData("Aim/Tolerance",         aimTolerance);
 
         // ── Distance ───────────────────────────────────────────────────────
         telemetry.addData("Distance/Raw_in",       distance);

@@ -21,6 +21,12 @@ import java.util.List;
 public class LimelightTuning extends LinearOpMode {
 
     // ─────────────────────────────────────────────
+    //  Shoot state machine  (no aiming state)
+    // ─────────────────────────────────────────────
+    private enum ShootState { IDLE, SPINNING, FIRING }
+    private ShootState shootState = ShootState.IDLE;
+
+    // ─────────────────────────────────────────────
     //  Hardware
     // ─────────────────────────────────────────────
     private DcMotorEx   shootMotor, intakeMotor, shootMotor2;
@@ -29,18 +35,21 @@ public class LimelightTuning extends LinearOpMode {
 
     // ─────────────────────────────────────────────
     //  PV Shooter constants — tune live via Dashboard
-    //  Kept identical to NewTeleOp for consistency
     // ─────────────────────────────────────────────
-    public static double kS      = 0.09;    // static / friction offset
-    public static double kV      = 0.00038; // velocity feedforward (power per tick/s)
-    public static double kP      = 0.01;   // proportional error gain (both motors)
-  // static friction offset  (lift motor — tune separately)
+    public static double kS = 0.09;     // static / friction offset
+    public static double kV = 0.0004;  // velocity feedforward (power per tick/s)
+    public static double kP = 0.01;     // proportional error gain
 
     // ─────────────────────────────────────────────
     //  Shooter target — adjust with D-pad up/down
     // ─────────────────────────────────────────────
     public static double targetVelocity = 1620;
     public static double hoodPos        = 0.538;
+    public static double intakeSpeed        = -0.75;
+
+    public static double rpmTolerance        = 50;
+    public static double BLOCK_OPEN_DURATION_MS = 1500;  // total gate-open time
+    public static double INTAKE_DELAY_MS        = 200;   // delay before intake starts
 
     // ─────────────────────────────────────────────
     //  Servo constants
@@ -51,15 +60,12 @@ public class LimelightTuning extends LinearOpMode {
     private static final double BLOCK_SERVO_UP   = 0.25;
 
     // ─────────────────────────────────────────────
-    //  Timers / state
+    //  State
     // ─────────────────────────────────────────────
-    private final ElapsedTime pushTimer      = new ElapsedTime();
-    private final ElapsedTime rapidFireTimer = new ElapsedTime();
-
-    private boolean isPushing       = false;
-    private boolean isPushingManual = false;
-    private int     shots           = 0;
-    private int     intakeOn        = 0;
+    private final ElapsedTime blockTimer = new ElapsedTime();
+    private boolean isBlocking          = false;
+    private int     intakeOn            = 0;
+    private int     preShootIntakeState = 0;
 
     // =========================================================
     //  runOpMode
@@ -68,15 +74,13 @@ public class LimelightTuning extends LinearOpMode {
     public void runOpMode() {
         shootMotor  = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
-        shootMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
 
         hoodServo  = hardwareMap.get(Servo.class, "hoodServo");
         pushServo  = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         limelight  = hardwareMap.get(Limelight3A.class, "limelight");
 
-        // RUN_WITHOUT_ENCODER: PV controller drives power directly.
-        // getVelocity() still works on DcMotorEx regardless of run mode.
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
@@ -99,94 +103,87 @@ public class LimelightTuning extends LinearOpMode {
             if (gamepad1.dpadDownWasPressed())  targetVelocity -= 10;
             if (gamepad1.dpadRightWasPressed()) hoodPos        += 0.002;
             if (gamepad1.dpadLeftWasPressed())  hoodPos        -= 0.002;
+            if (gamepad1.aWasPressed())  intakeSpeed        -= 0.1;
+            if (gamepad1.yWasPressed())  intakeSpeed        += 0.1;
 
             targetVelocity = Math.max(0, targetVelocity);
             hoodPos        = clamp(hoodPos, 0.0, 1.0);
 
-            // ── PV controller (matches NewTeleOp setShooterPV exactly) ──
+            // ── Shooter always running ──
             setShooterPV(targetVelocity);
             hoodServo.setPosition(hoodPos);
 
-            // ── Intake ──
-            if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
-            if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
-            switch (intakeOn) {
-                case 1:  intakeMotor.setPower(-1); break;
-                case 2:  intakeMotor.setPower( 1); break;
-                default: intakeMotor.setPower( 0); break;
+            // ── Trigger: start shoot sequence ──
+            if (gamepad1.right_trigger > 0.3 && shootState == ShootState.IDLE) {
+                preShootIntakeState = intakeOn;
+                intakeOn = 0;
+                intakeMotor.setPower(0);
+                shootState = ShootState.SPINNING;
             }
 
-            // ── Rapid fire: 3-shot burst on right trigger ──
-            if (gamepad1.right_trigger > 0.3 && !isPushing && shots == 0) {
-                shots = 3;
-                blockServo.setPosition(BLOCK_SERVO_UP);
-            }
-            if (!isPushing && shots > 0) {
-                isPushing = true;
-                rapidFireTimer.reset();
-                pushServo.setPosition(PUSH_SERVO_UP);
-            }
-            if (isPushing) {
-                double t = rapidFireTimer.milliseconds();
-                if (t <= 150) {
-                    pushServo.setPosition(PUSH_SERVO_UP);
-                } else if (t <= 300) {
-                    pushServo.setPosition(PUSH_SERVO_DOWN);
-                } else {
-                    isPushing = false;
-                    shots--;
-                    if (shots == 0) blockServo.setPosition(BLOCK_SERVO_DOWN);
+            // ── Intake toggle — only when IDLE ──
+            if (shootState == ShootState.IDLE) {
+                if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
+                if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
+                switch (intakeOn) {
+                    case 1:  intakeMotor.setPower(intakeSpeed); break;
+                    case 2:  intakeMotor.setPower( 1); break;
+                    default: intakeMotor.setPower( 0); break;
                 }
             }
 
-            // ── Manual single shot: right bumper ──
-            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
-                isPushingManual = true;
-                pushTimer.reset();
-                pushServo.setPosition(PUSH_SERVO_UP);
-                blockServo.setPosition(BLOCK_SERVO_UP);
-            }
-            if (isPushingManual && pushTimer.milliseconds() > 400) {
-                pushServo.setPosition(PUSH_SERVO_DOWN);
-                blockServo.setPosition(BLOCK_SERVO_DOWN);
-                isPushingManual = false;
-            }
+            // ── State machine ──
+            runStateMachine();
 
-            // ── Telemetry ──
-            double shootVel  = shootMotor.getVelocity();
-            double shootErr  = targetVelocity - shootVel;
-
-            telemetry.addData("Shooter/TargetVelocity",  targetVelocity);
-            telemetry.addData("Shooter/ActualVelocity",  shootVel);
-            telemetry.addData("Shooter/Error",           shootErr);
-            telemetry.addData("Shooter/Power",           shootMotor.getPower());
-            telemetry.addData("Shooter/AtTarget",        Math.abs(shootErr) < 50);
-
-            telemetry.addData("Hood/Position",           hoodPos);
-            telemetry.addData("Distance/in",             "%.1f", distanceFromRed());
-            telemetry.addData("Shots/Queued",            shots);
-
-            // Per-term breakdown for tuning
-            telemetry.addData("PV/kS",           kS);
-            telemetry.addData("PV/kV",           kV);
-            telemetry.addData("PV/kP",           kP);
-            telemetry.addData("PV/term_kV",      kV * targetVelocity);
-            telemetry.addData("PV/term_kP_shoot", kP * shootErr);
-            telemetry.update();
+            updateTelemetry();
         }
     }
 
     // =========================================================
-    //  PV Shooter Controller — matches NewTeleOp setShooterPV() exactly
+    //  State machine
+    // =========================================================
+    private void runStateMachine() {
+        switch (shootState) {
+
+            case SPINNING:
+                // Wait for RPM to reach target
+                if (atRPMTarget()) {
+                    shootState = ShootState.FIRING;
+                }
+                break;
+
+            case FIRING:
+                // Step 1: open gate once at entry
+                if (!isBlocking) {
+                    isBlocking = true;
+                    blockTimer.reset();
+                    blockServo.setPosition(BLOCK_SERVO_UP);
+                }
+
+                // Step 2: start intake after servo has had time to travel up
+                if (blockTimer.milliseconds() >= INTAKE_DELAY_MS) {
+                    intakeMotor.setPower(intakeSpeed);
+                }
+
+                // Step 3: close gate, stop intake, restore previous intake state
+                if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
+                    blockServo.setPosition(BLOCK_SERVO_DOWN);
+                    intakeMotor.setPower(0);
+                    intakeOn   = preShootIntakeState;
+                    isBlocking = false;
+                    shootState = ShootState.IDLE;
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    // =========================================================
+    //  PV Shooter Controller
     //
     //   power = kS  +  kV × target  +  kP × (target − actual)
-    //
-    //   kS      — overcomes static friction (shoot motor)
-    //   kS_lift — overcomes static friction (lift motor, tune independently)
-    //   kV      — open-loop feedforward; shared by both motors
-    //   kP      — proportional correction; each motor uses its own velocity
-    //
-    //   Clamped to [0, 1] — flywheels never run in reverse
     // =========================================================
     private void setShooterPV(double targetRPM) {
         if (targetRPM <= 0) {
@@ -195,12 +192,48 @@ public class LimelightTuning extends LinearOpMode {
             return;
         }
 
-        double shootVel  = shootMotor.getVelocity();
-
+        double shootVel   = shootMotor.getVelocity();
         double shootPower = kS + (kV * targetRPM) + (kP * (targetRPM - shootVel));
 
         shootMotor.setPower(clamp(shootPower, -1, 1));
-        shootMotor2.setPower(clamp(shootPower,  -1, 1));
+        shootMotor2.setPower(clamp(shootPower, -1, 1));
+    }
+
+    private boolean atRPMTarget() {
+        return Math.abs(shootMotor.getVelocity() - targetVelocity) < rpmTolerance;
+    }
+
+    // =========================================================
+    //  Telemetry
+    // =========================================================
+    private void updateTelemetry() {
+        double shootVel = shootMotor.getVelocity();
+        double shootErr = targetVelocity - shootVel;
+
+        telemetry.addData("State/ShootState",         shootState.toString());
+        telemetry.addData("State/IsBlocking",         isBlocking);
+        telemetry.addData("State/BlockTimerMs",       blockTimer.milliseconds());
+
+        telemetry.addData("Shooter/TargetVelocity",   targetVelocity);
+        telemetry.addData("Shooter/ActualVelocity",   shootVel);
+        telemetry.addData("Shooter/Error",            shootErr);
+        telemetry.addData("Shooter/Power",            shootMotor.getPower());
+        telemetry.addData("Shooter/AtTarget",         atRPMTarget());
+
+        telemetry.addData("Hood/Position",            hoodPos);
+        telemetry.addData("Distance/in",              "%.1f", distanceFromRed());
+
+        telemetry.addData("Intake/State",             intakeOn);
+        telemetry.addData("Intake Speed",             intakeSpeed);
+        telemetry.addData("Intake/PreShootState",     preShootIntakeState);
+
+        telemetry.addData("PV/kS",                   kS);
+        telemetry.addData("PV/kV",                   kV);
+        telemetry.addData("PV/kP",                   kP);
+        telemetry.addData("PV/term_kV",              kV * targetVelocity);
+        telemetry.addData("PV/term_kP",              kP * shootErr);
+
+        telemetry.update();
     }
 
     // =========================================================

@@ -53,15 +53,15 @@ public class NewTeleOp extends LinearOpMode {
     public static double kS = 0.09;     // static / friction offset
     public static double kV = 0.0004;  // velocity feedforward (power per tick/s)
     public static double kP = 0.01;     // proportional error gain
-
+    public static double BLOCK_INTAKE_DELAY_MS = 300;
     // ─────────────────────────────────────────────
     //  Aim PIDF constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double Kp_aim  = 0.02;
+    public static double Kp_aim  = 0.01;
     public static double Ki_aim  = 0.0;
-    public static double Kd_aim  = 0.008;
-    public static double Kf_aim  = 0.18;  // feedforward (sign-based static friction)
-    public static double aimTolerance = 2.0;
+    public static double Kd_aim  = 0.0007;
+    public static double Kf_aim  = 0.2;  // feedforward (sign-based static friction)
+    public static double aimTolerance = 1.25;
 
     private PIDFController aimPid;
 
@@ -82,13 +82,15 @@ public class NewTeleOp extends LinearOpMode {
     private static final double BLOCK_SERVO_DOWN       = 0.78;
     private static final double BLOCK_SERVO_UP         = 0.25;
     private static final double PUSH_SERVO_DOWN        = 0.9;
-    public  static       double BLOCK_OPEN_DURATION_MS = 1200;
+    public  static       double BLOCK_OPEN_DURATION_MS = 1000;
 
     // Intake speed used when resuming during FIRING at long range (> 110 in)
-    public static double LONG_RANGE_INTAKE_SPEED = -0.65;
+    public static double LONG_RANGE_INTAKE_SPEED = -0.8;
 
     private final ElapsedTime blockTimer = new ElapsedTime();
     private boolean isBlocking = false;
+    private final ElapsedTime blockServoUpTimer = new ElapsedTime();
+    private boolean intakeStarted = false;
 
     // ─────────────────────────────────────────────
     //  Limelight / distance state
@@ -163,9 +165,10 @@ public class NewTeleOp extends LinearOpMode {
                     aimPid.updateFeedForwardInput(Math.signum(error));
                     yaw = aimPid.run();
                     if (Math.abs(error) < aimTolerance) {
-                        autoState = AutoState.SPINNING;
+                        yaw = 0;
                         axial     = 0;
                         lateral   = 0;
+                        autoState = AutoState.SPINNING;
                     }
                 }
             }
@@ -204,7 +207,7 @@ public class NewTeleOp extends LinearOpMode {
     private void initHardware() {
         shootMotor  = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
-        shootMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
 
         hoodServo  = hardwareMap.get(Servo.class, "hoodServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
@@ -236,7 +239,7 @@ public class NewTeleOp extends LinearOpMode {
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
 
         // Servo starting positions
-        hoodServo.setPosition(0.40);
+        hoodServo.setPosition(0.42);
         blockServo.setPosition(BLOCK_SERVO_DOWN);
 
         // Limelight
@@ -387,41 +390,45 @@ public class NewTeleOp extends LinearOpMode {
             case FIRING:
                 if (cameraBlocked && !manualOverride) {
                     blockServo.setPosition(BLOCK_SERVO_DOWN);
-                    isBlocking = false;
+                    isBlocking    = false;
+                    intakeStarted = false;
                     abortSequence("blocked during fire");
-                    // Restore intake state on abort
                     intakeOn = preShootIntakeState;
                     applyIntakePower();
                     break;
                 }
 
-                // Open block servo once at entry, and resume intake
+                // Raise block servo once on entry — intake NOT started yet
                 if (!isBlocking) {
                     isBlocking = true;
                     blockTimer.reset();
+                    blockServoUpTimer.reset();
+                    intakeStarted = false;
                     blockServo.setPosition(BLOCK_SERVO_UP);
+                }
 
-                    // Resume intake — speed depends on distance
+                // Start intake only after the delay has elapsed
+                if (!intakeStarted && blockServoUpTimer.milliseconds() >= BLOCK_INTAKE_DELAY_MS) {
+                    intakeStarted = true;
                     if (distance > 110) {
                         intakeMotor.setPower(LONG_RANGE_INTAKE_SPEED);
                     } else {
                         intakeMotor.setPower(-1.0);
                     }
-                    intakeOn = 1; // mark as running so state is consistent
+                    intakeOn = 1;
                 }
 
-                // Close after duration and return to IDLE
+                // Close servo after full duration and return to IDLE
                 if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
                     blockServo.setPosition(BLOCK_SERVO_DOWN);
                     isBlocking     = false;
+                    intakeStarted  = false;
                     velocityLocked = false;
                     autoState      = AutoState.IDLE;
-                    // Restore the intake state that was active before the shot
-                    intakeOn = preShootIntakeState;
+                    intakeOn       = preShootIntakeState;
                     applyIntakePower();
                 }
                 break;
-
             default:
                 break;
         }
@@ -551,26 +558,26 @@ public class NewTeleOp extends LinearOpMode {
     // =========================================================
     private void buildLookupTables() {
         // RPM vs distance (inches)
-        controlPointsRPM.add(22,  1100);
-        controlPointsRPM.add(25,  1100);
-        controlPointsRPM.add(30,  1100);
+        controlPointsRPM.add(22,  1000);
+        controlPointsRPM.add(25,  1000);
+        controlPointsRPM.add(30,  1000);
         controlPointsRPM.add(35,  1100);
-        controlPointsRPM.add(40,  1150);
-        controlPointsRPM.add(45,  1150);
-        controlPointsRPM.add(50,  1180);
-        controlPointsRPM.add(55,  1180);
-        controlPointsRPM.add(60,  1280);
-        controlPointsRPM.add(65,  1280);
-        controlPointsRPM.add(70,  1380);
-        controlPointsRPM.add(75,  1380);
-        controlPointsRPM.add(80,  1430);
-        controlPointsRPM.add(85,  1430);
-        controlPointsRPM.add(110, 1610);
-        controlPointsRPM.add(115, 1610);
-        controlPointsRPM.add(120, 1620);
-        controlPointsRPM.add(125, 1620);
-        controlPointsRPM.add(130, 1650);
-        controlPointsRPM.add(135, 1680);
+        controlPointsRPM.add(40,  1100);
+        controlPointsRPM.add(45,  1100);
+        controlPointsRPM.add(50,  1140);
+        controlPointsRPM.add(55,  1150);
+        controlPointsRPM.add(60,  1200);
+        controlPointsRPM.add(65,  1200);
+        controlPointsRPM.add(70,  1250);
+        controlPointsRPM.add(75,  1250);
+        controlPointsRPM.add(80,  1280);
+        controlPointsRPM.add(85,  1280);
+        controlPointsRPM.add(110, 1360);
+        controlPointsRPM.add(115, 1365);
+        controlPointsRPM.add(120, 1380);
+        controlPointsRPM.add(125, 1390);
+        controlPointsRPM.add(130, 1420);
+        controlPointsRPM.add(135, 1420);
         controlPointsRPM.createLUT();
 
         // Hood position vs distance (inches)
@@ -584,16 +591,16 @@ public class NewTeleOp extends LinearOpMode {
         controlPointsHood.add(55,  0.486);
         controlPointsHood.add(60,  0.486);
         controlPointsHood.add(65,  0.495);
-        controlPointsHood.add(70,  0.498);
-        controlPointsHood.add(75,  0.498);
+        controlPointsHood.add(70,  0.500);
+        controlPointsHood.add(75,  0.500);
         controlPointsHood.add(80,  0.510);
         controlPointsHood.add(85,  0.510);
-        controlPointsHood.add(110, 0.542);
-        controlPointsHood.add(115, 0.542);
-        controlPointsHood.add(120, 0.546);
-        controlPointsHood.add(125, 0.546);
+        controlPointsHood.add(110, 0.536);
+        controlPointsHood.add(115, 0.536);
+        controlPointsHood.add(120, 0.538);
+        controlPointsHood.add(125, 0.538);
         controlPointsHood.add(130, 0.546);
-        controlPointsHood.add(135, 0.546);
+        controlPointsHood.add(135, 0.568);
         controlPointsHood.createLUT();
     }
 

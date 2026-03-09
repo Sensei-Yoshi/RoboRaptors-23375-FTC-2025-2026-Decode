@@ -25,13 +25,13 @@ public class TwelveBallAutoRed extends OpMode {
     final double hoodServoClose = 0.48;
     //Change:
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
-    private final Pose scorePose = new Pose(101, 103, Math.toRadians(45));
+    private final Pose scorePose = new Pose(101, 103, Math.toRadians(40));
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0));
-    private final Pose pickup2Pose = new Pose(94, 60, Math.toRadians(0));
-    private final Pose pickup3Pose = new Pose(126, 60, Math.toRadians(0));
-    private final Pose pickup4Pose = new Pose(94, 40, Math.toRadians(0));
-    private final Pose pickup5Pose = new Pose(127, 40, Math.toRadians(0));
+    private final Pose pickup2Pose = new Pose(94, 59, Math.toRadians(0));
+    private final Pose pickup3Pose = new Pose(126, 59, Math.toRadians(0));
+    private final Pose pickup4Pose = new Pose(94, 38, Math.toRadians(0));
+    private final Pose pickup5Pose = new Pose(127, 38, Math.toRadians(0));
     private final Pose park = new Pose(113, 74, Math.toRadians(0));
     private final Pose gatePose = new Pose(126, 77, Math.toRadians(0));
 
@@ -130,7 +130,7 @@ public class TwelveBallAutoRed extends OpMode {
             case 1:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
                     blockServo.setPosition(blockServoUp);
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     intakeMotor.setPower(-1);
@@ -220,6 +220,7 @@ public class TwelveBallAutoRed extends OpMode {
             case 10:
                 if (!follower.isBusy()) {
                     follower.followPath(scorePickup3,0.8,true);
+                    intakeMotor.setPower(0);
                     setPathState(11);
                 }
                 break;
@@ -276,7 +277,7 @@ public class TwelveBallAutoRed extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
-        shootMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");

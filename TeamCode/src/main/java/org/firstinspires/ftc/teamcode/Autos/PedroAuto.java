@@ -25,7 +25,7 @@ public class PedroAuto extends OpMode {
     final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(45));
+    private final Pose scorePose = new Pose(103, 103, Math.toRadians(40));
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0));
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0));
     private final Pose pickup2Pose = new Pose(94, 60, Math.toRadians(0));
@@ -226,7 +226,7 @@ public class PedroAuto extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
-        shootMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
@@ -236,7 +236,6 @@ public class PedroAuto extends OpMode {
         shootMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
         hoodServo.setPosition(hoodServoClose);
         buildPaths();

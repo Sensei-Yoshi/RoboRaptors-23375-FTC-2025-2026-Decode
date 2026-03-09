@@ -2,10 +2,12 @@
 
 import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
-import com.arcrobotics.ftclib.controller.PIDFController;
-import com.arcrobotics.ftclib.util.InterpLUT;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PIDFController;
+import com.arcrobotics.ftclib.util.InterpLUT;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -22,520 +24,654 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.List;
 
 @Config
-@TeleOp(name="Blue TeleOp", group="Tuning")
+@TeleOp(name = "Blue TeleOp", group = "Tuning")
 public class TeleOpBlue extends LinearOpMode {
 
+    // ─────────────────────────────────────────────
+    //  Auto-shoot state machine
+    // ─────────────────────────────────────────────
     private enum AutoState { IDLE, AIMING, SPINNING, FIRING }
-    private com.arcrobotics.ftclib.controller.PIDFController aimPid;
     private AutoState autoState = AutoState.IDLE;
-    private ElapsedTime pushTimer1 = new ElapsedTime();
-    ElapsedTime fireDelayTimer = new ElapsedTime();
-    boolean fireDelayActive = false;
 
-    DcMotorEx shootMotor, intakeMotor;
-    Servo hoodServo, pushServo, blockServo, light;
-    InterpLUT controlPointsRPM = new InterpLUT();
-    InterpLUT controlPointsHood = new InterpLUT();
-    DcMotor leftFrontDrive = null;
-    DcMotor leftBackDrive = null;
-    DcMotor rightFrontDrive = null;
-    DcMotor rightBackDrive = null;
-    private DcMotor liftMotor = null;
+    // ─────────────────────────────────────────────
+    //  Hardware
+    // ─────────────────────────────────────────────
+    private DcMotorEx   shootMotor, intakeMotor, shootMotor2;
+    private Servo       hoodServo, blockServo, pushServo, light;
+    private DcMotor     leftFrontDrive, leftBackDrive, rightFrontDrive, rightBackDrive;
+    private Limelight3A limelight;
 
+    // ─────────────────────────────────────────────
+    //  Lookup tables  (distance → RPM / hood)
+    // ─────────────────────────────────────────────
+    private final InterpLUT controlPointsRPM  = new InterpLUT();
+    private final InterpLUT controlPointsHood = new InterpLUT();
 
-    double hoodPos = 0.40;
+    // ─────────────────────────────────────────────
+    //  Shooter PV constants  (tune via Dashboard)
+    // ─────────────────────────────────────────────
+    public static double kS = 0.09;     // static / friction offset
+    public static double kV = 0.0004;  // velocity feedforward (power per tick/s)
+    public static double kP = 0.01;     // proportional error gain
+    public static double BLOCK_INTAKE_DELAY_MS = 300;
+    // ─────────────────────────────────────────────
+    //  Aim PIDF constants  (tune via Dashboard)
+    // ─────────────────────────────────────────────
+    public static double Kp_aim  = 0.01;
+    public static double Ki_aim  = 0.0;
+    public static double Kd_aim  = 0.0007;
+    public static double Kf_aim  = 0.18;  // feedforward (sign-based static friction)
+    public static double aimTolerance = 1;
 
-    Limelight3A limelight;
-    ElapsedTime pushTimer = new ElapsedTime();
-    boolean isPushing = false;
-    boolean isPushingManual = false;
-    boolean autoAimActive = false;
-    boolean shooterReady = false;
-    boolean aimReady = false;
+    private PIDFController aimPid;
 
-    int intakeOn = 0;
-    int shots = 0;
-    final double pushServoDown = 0.9; //change if too close to ground: <0.9 == up and >0.9 = down
-    final double pushServoUp = 0.5;
-
-    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
-    final double blockServoUp = 0.25;
-
-    public static double Kp = 0.020;
-    public static double Ki = 0.0;
-    public static double Kd = 0.003;
-    public static double Kf = 0.18;
-    double targetPose = 0;
-    public static double rpmTolerance = 150;
-    public static double aimTolerance = 1.5;
-    double distance;
-    ElapsedTime blockDelayTimer = new ElapsedTime();
-    boolean blockDelayActive = false;
-    final double BLOCK_OPEN_DELAY = 25;
-    private double lastTx = 0.0;
-    private long lastSeenTimeMs = 0;
-    private static final long TARGET_HOLD_MS = 30;
-
-    private double lastDistance = 0.0;
-    private long lastDistanceSeenTimeMs = 0;
-
-    private boolean velocityLocked = false;
-    private double lockedDistance = 0.0;
-    private double lockedRPM = 0.0;
-    private double lockedHood = 0.0;
-    boolean shooterOverride = false;
-    double lastAutoRPM = 0;
-    private boolean cameraBlocked = false;
-    private long lastValidTargetTime = 0;
-    private boolean hasRumbledForBlock = false;
-    private static final long CAMERA_BLOCK_TIMEOUT_MS = 400;
-
-    private boolean manualOverride = false;
-    private static final double MANUAL_RPM = 1100;
-    private static final double MANUAL_HOOD = 0.48;
-
-    // Idle (moderate) speed the shooter holds when not firing.
-    // Roughly the midpoint of the RPM and hood LUTs.
-    public static double IDLE_RPM = 1200;
+    // ─────────────────────────────────────────────
+    //  Shooter targets
+    // ─────────────────────────────────────────────
+    public static double IDLE_RPM  = 1100;
     public static double IDLE_HOOD = 0.520;
 
+    public static double MANUAL_RPM  = 1100;
+    public static double MANUAL_HOOD = 0.48;
 
+    public static double rpmTolerance = 50;
 
+    // ─────────────────────────────────────────────
+    //  Block servo
+    // ─────────────────────────────────────────────
+    private static final double BLOCK_SERVO_DOWN       = 0.78;
+    private static final double BLOCK_SERVO_UP         = 0.25;
+    private static final double PUSH_SERVO_DOWN        = 0.9;
+    public  static       double BLOCK_OPEN_DURATION_MS = 1000;
 
+    // Intake speed used when resuming during FIRING at long range (> 110 in)
+    public static double LONG_RANGE_INTAKE_SPEED = -0.8;
+
+    private final ElapsedTime blockTimer = new ElapsedTime();
+    private boolean isBlocking = false;
+    private final ElapsedTime blockServoUpTimer = new ElapsedTime();
+    private boolean intakeStarted = false;
+
+    // ─────────────────────────────────────────────
+    //  Limelight / distance state
+    // ─────────────────────────────────────────────
+    private static final long TARGET_HOLD_MS          = 30;
+    private static final long CAMERA_BLOCK_TIMEOUT_MS = 400;
+
+    private double lastTx                 = 0.0;
+    private long   lastSeenTimeMs         = 0;
+    private double lastDistance           = 0.0;
+    private long   lastDistanceSeenTimeMs = 0;
+    private long   lastValidTargetTime    = 0;
+
+    private boolean cameraBlocked      = false;
+    private boolean hasRumbledForBlock = false;
+
+    // ─────────────────────────────────────────────
+    //  Velocity lock  (snapshot on trigger press)
+    // ─────────────────────────────────────────────
+    private boolean velocityLocked = false;
+    private double  lockedRPM      = 0.0;
+    private double  lockedHood     = 0.0;
+
+    // ─────────────────────────────────────────────
+    //  Mode flags
+    // ─────────────────────────────────────────────
+    private boolean shooterOverride     = false; // true = shooter OFF
+    private boolean manualOverride      = false; // true = fixed RPM/hood
+    private int     intakeOn            = 0;     // 0=off, 1=in, 2=out
+    private int     preShootIntakeState = 0;     // saved intake state before shoot sequence
+
+    // ─────────────────────────────────────────────
+    //  Misc
+    // ─────────────────────────────────────────────
+    private double distance    = 0;
+    private double lastAutoRPM = 0;
+
+    // =========================================================
+    //  runOpMode
+    // =========================================================
     @Override
     public void runOpMode() {
+        initHardware();
+        buildLookupTables();
 
-        shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+        aimPid = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
+
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+            handleButtons();
+            updateCameraBlockStatus();
+
+            double axial   = -gamepad1.left_stick_y;
+            double lateral =  gamepad1.left_stick_x;
+            double yaw     =  gamepad1.right_stick_x;
+
+            // ── Trigger: start shoot sequence ──
+            if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE) {
+                yaw = startShootSequence(yaw);
+            }
+
+            // ── AIMING state: rotate robot toward target ──
+            if (autoState == AutoState.AIMING) {
+                if (cameraBlocked) {
+                    abortSequence("blocked during aim");
+                } else {
+                    double error = getTx(20);
+                    aimPid.updateError(error);
+                    aimPid.updateFeedForwardInput(Math.signum(error));
+                    yaw = aimPid.run();
+                    if (Math.abs(error) < aimTolerance) {
+                        yaw = 0;
+                        axial     = 0;
+                        lateral   = 0;
+                        autoState = AutoState.SPINNING;
+                    }
+                }
+            }
+
+            driveMecanum(axial, lateral, yaw);
+
+            // ── Determine RPM / hood targets ──
+            distance = clampDistance(getStableDistance());
+            double targetRPM;
+            double hoodTarget;
+
+            if (velocityLocked) {
+                targetRPM  = lockedRPM;
+                hoodTarget = lockedHood;
+            } else {
+                targetRPM  = IDLE_RPM;
+                hoodTarget = IDLE_HOOD;
+            }
+
+            // ── Apply shooter power via PV controller ──
+            applyShooterPower(targetRPM, hoodTarget);
+
+            // ── Auto-state machine (SPINNING / FIRING) ──
+            runStateMachine(targetRPM);
+
+            // ── Manual block servo (right bumper) ──
+            handleManualBlock();
+
+            updateTelemetry(targetRPM, hoodTarget, yaw);
+        }
+    }
+
+    // =========================================================
+    //  Initialisation
+    // =========================================================
+    private void initHardware() {
+        shootMotor  = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
-        hoodServo = hardwareMap.get(Servo.class, "hoodServo");
-        pushServo = hardwareMap.get(Servo.class, "pushServo");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
+
+        hoodServo  = hardwareMap.get(Servo.class, "hoodServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        leftFrontDrive = hardwareMap.get(DcMotor.class, "left_front_drive");
-        leftBackDrive = hardwareMap.get(DcMotor.class, "left_back_drive");
+        pushServo  = hardwareMap.get(Servo.class, "pushServo");
+        light      = hardwareMap.get(Servo.class, "light");
+
+        leftFrontDrive  = hardwareMap.get(DcMotor.class, "left_front_drive");
+        leftBackDrive   = hardwareMap.get(DcMotor.class, "left_back_drive");
         rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
-        light = hardwareMap.get(Servo.class, "light");
-        liftMotor = hardwareMap.get(DcMotor.class, "liftMotor");
+        rightBackDrive  = hardwareMap.get(DcMotor.class, "right_back_drive");
+
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+
+        // Drive direction
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
+        // Drive brake
         leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
+        shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
+
+        // Servo starting positions
+        hoodServo.setPosition(0.42);
+        blockServo.setPosition(BLOCK_SERVO_DOWN);
+
+        // Limelight
         limelight.start();
         limelight.pipelineSwitch(0);
+    }
 
-        shootMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new com.qualcomm.robotcore.hardware.PIDFCoefficients(300, 0, 0, 10));
-        hoodServo.setPosition(hoodPos);
-        pushServo.setPosition(pushServoDown);
-        blockServo.setPosition(blockServoDown);
-        createHoodControlPoints();
-        createRPMControlPoints();
+    // =========================================================
+    //  Gamepad button handling
+    // =========================================================
+    private void handleButtons() {
+        // A: toggle shooter on/off
+        if (gamepad1.aWasPressed()) {
+            shooterOverride = !shooterOverride;
+            gamepad1.setLedColor(
+                    shooterOverride ? 0 : 0,
+                    shooterOverride ? 1 : 0,
+                    shooterOverride ? 0 : 1,
+                    LED_DURATION_CONTINUOUS); // green=OFF, blue=ON
+        }
 
-        aimPid = new PIDFController(Kp, 0,Kd,0);
-        aimPid.setTolerance(1.5);
-        aimPid.setSetPoint(0);
-        waitForStart();
-        boolean autoShootActive = false;
-        boolean firingArmed = false;
-
-        double yaw = 0;
-
-        while (opModeIsActive()) {
-            if (gamepad1.aWasPressed()) {
-                if (!shooterOverride) {
-                    // Turn shooter OFF
-                    shootMotor.setVelocity(0);
-                    shooterOverride = true;
-                    gamepad1.setLedColor(0, 1, 0, LED_DURATION_CONTINUOUS); // green
-                } else {
-                    // Turn shooter back ON to auto mode
-                    shooterOverride = false;
-                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
-                }
-            }
-
-            if (gamepad1.dpadUpWasPressed()) {
-                if (!manualOverride) {
-                    // Turn ON manual override
-                    manualOverride = true;
-                    gamepad1.setLedColor(1, 1, 0, LED_DURATION_CONTINUOUS); // yellow
-                } else {
-                    // Turn OFF manual override
-                    manualOverride = false;
-                    limelight.start();
-                    gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
-                }
-            }
-
-
-            if (gamepad1.circleWasPressed())
-                if (intakeOn == 1)
-                    intakeOn = 0;
-                else
-                    intakeOn = 1;
-            if (gamepad1.squareWasPressed())
-                if (intakeOn == 2)
-                    intakeOn = 0;
-                else
-                    intakeOn = 2;
-            if (intakeOn == 1) {
-                intakeMotor.setPower(-1);
-            } else if (intakeOn == 2) {
-                intakeMotor.setPower(1);
-            } else {
-                intakeMotor.setPower(0);
-            }
-            double max;
-            double axial = -gamepad1.left_stick_y;
-            double lateral = gamepad1.left_stick_x;
-            yaw = gamepad1.right_stick_x;
-            updateCameraBlockStatus();
-
-            // ── Lock velocity/hood the instant the shoot button is pressed ──
-            if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE) {
-                if (manualOverride) {
-                    velocityLocked = true;
-                    lockedRPM = MANUAL_RPM;
-                    lockedHood = MANUAL_HOOD;
-                    autoState = AutoState.SPINNING;
-                } else if (cameraBlocked) {
-                    gamepad1.rumble(1.0, 1.0, 500);
-                    hasRumbledForBlock = true;
-                } else {
-                    // Snapshot current distance-based values and lock them
-                    distance = clampDistance(getStableDistance());
-                    velocityLocked = true;
-                    lockedDistance = distance;
-                    lockedRPM = controlPointsRPM.get(distance);
-                    lockedHood = controlPointsHood.get(distance);
-                    autoState = AutoState.AIMING;
-                    hasRumbledForBlock = false;
-                }
-            }
-
-            if (autoState == AutoState.AIMING) {
-                // Check if camera becomes blocked during aiming
-                if (cameraBlocked) {
-                    if (!hasRumbledForBlock) {
-                        gamepad1.rumble(1.0, 1.0, 500);
-                        hasRumbledForBlock = true;
-                    }
-                    // Abort auto aim sequence; unlock so shooter goes back to live tracking
-                    autoState = AutoState.IDLE;
-                    velocityLocked = false;
-                    blockDelayActive = false;
-                } else {
-                    double error = getTx(20);
-                    yaw = (-aimPid.calculate(error) + (Kf * Math.signum(error)));
-                    if (aimPid.atSetPoint()) {
-                        autoState = AutoState.SPINNING;
-                        axial = 0;
-                        lateral = 0;
-                    }
-                }
-            }
-
-            double denominator = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
-            double leftFrontPower = (axial + lateral + yaw) / denominator;
-            double rightFrontPower = (axial - lateral - yaw) / denominator;
-            double leftBackPower = (axial - lateral + yaw) / denominator;
-            double rightBackPower = (axial + lateral - yaw) / denominator;
-
-            leftFrontDrive.setPower(leftFrontPower);
-            leftBackDrive.setPower(leftBackPower);
-            rightFrontDrive.setPower(rightFrontPower);
-            rightBackDrive.setPower(rightBackPower);
-
-
-            // ── Determine what RPM/hood to command ──
-            // Default: idle RPM/hood.
-            // Only switch to distance-based (locked) values while a shoot sequence is active.
-            double targetRPM;
-            double hoodTarget;
-
-            distance = clampDistance(getStableDistance());
-
-            if (velocityLocked) {
-                // Active shoot sequence: hold the locked distance-based values
-                targetRPM = lockedRPM;
-                hoodTarget = lockedHood;
-            } else {
-                // Not firing: run at idle speed
-                targetRPM = IDLE_RPM;
-                hoodTarget = IDLE_HOOD;
-            }
-
+        // D-pad up: toggle manual override
+        if (gamepad1.dpadUpWasPressed()) {
+            manualOverride = !manualOverride;
             if (manualOverride) {
-                // Manual override always uses its fixed values
-                shootMotor.setVelocity(MANUAL_RPM);
-                hoodServo.setPosition(MANUAL_HOOD);
-            } else if (!shooterOverride) {
-                shootMotor.setVelocity(targetRPM);
-                hoodServo.setPosition(hoodTarget);
-                lastAutoRPM = targetRPM;
+                gamepad1.setLedColor(1, 1, 0, LED_DURATION_CONTINUOUS); // yellow
             } else {
-                // Shooter override - OFF
-                shootMotor.setVelocity(0);
+                limelight.start();
+                gamepad1.setLedColor(0, 0, 1, LED_DURATION_CONTINUOUS); // blue
             }
+        }
 
-            switch (autoState) {
+        // Circle/Square: intake toggle — only allowed when not in a shoot sequence
+        if (autoState == AutoState.IDLE) {
+            if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
+            if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
 
-                case SPINNING:
-                    if (cameraBlocked && !manualOverride) {
-                        if (!hasRumbledForBlock) {
-                            gamepad1.rumble(1.0, 1.0, 500);
-                            hasRumbledForBlock = true;
-                        }
-                        autoState = AutoState.IDLE;
-                        velocityLocked = false;
-                        blockDelayActive = false;
-                    } else if (Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance) {
-                        autoState = AutoState.FIRING;
-                    }
-                    break;
-                case FIRING:
-                    if (cameraBlocked && !manualOverride) {
-                        if (!hasRumbledForBlock) {
-                            gamepad1.rumble(1.0, 1.0, 500);
-                            hasRumbledForBlock = true;
-                        }
-                        // Abort firing, unlock so shooter goes back to live tracking
-                        autoState = AutoState.IDLE;
-                        firingArmed = false;
-                        velocityLocked = false;
-                        blockDelayActive = false;
-                        shots = 0;
-                        blockServo.setPosition(blockServoDown);
-                        break;
-                    }
-                    // velocityLocked is already true from button press
-
-                    // Step 2 – Open blocker and wait before pushing
-                    if (!blockDelayActive) {
-                        blockServo.setPosition(blockServoUp);
-                        blockDelayTimer.reset();
-                        blockDelayActive = true;
-                        break;
-                    }
-
-                    if (blockDelayTimer.milliseconds() < BLOCK_OPEN_DELAY) break;
-
-                    // Step 3 – Arm firing
-                    if (!firingArmed) {
-                        firingArmed = true;
-                        shots = 3;
-                    }
-
-                    if (shots == 0) {
-                        firingArmed = false;
-                        velocityLocked = false;  // Unlock — shooter returns to live distance tracking
-                        blockDelayActive = false;
-                        autoState = AutoState.IDLE;
-                    }
-                    break;
+            switch (intakeOn) {
+                case 1:  intakeMotor.setPower(-1); break;
+                case 2:  intakeMotor.setPower( 1); break;
+                default: intakeMotor.setPower( 0); break;
             }
-
-            if (shots > 0 && !isPushing) {
-                isPushing = true;
-                pushTimer1.reset();
-                pushServo.setPosition(pushServoUp);
-            }
-
-            if (isPushing) {
-                double t = pushTimer1.milliseconds();
-                if (t <= 150) { //delay time
-                    pushServo.setPosition(pushServoUp);
-                } else if (t <= 300) {
-                    pushServo.setPosition(pushServoDown);
-                } else {
-                    isPushing = false;
-                    shots--;
-                    if (shots == 0) {
-                        blockServo.setPosition(blockServoDown);
-                    }
-                }
-            }
-
-            if (gamepad1.rightBumperWasPressed() && !isPushingManual) {
-                isPushingManual = true;
-                pushTimer.reset();
-                pushServo.setPosition(pushServoUp);
-                blockServo.setPosition(blockServoUp);
-            }
-            if (isPushingManual) {
-                if (pushTimer.milliseconds() > 400) {
-                    pushServo.setPosition(pushServoDown);
-                    blockServo.setPosition(blockServoDown);
-                    isPushingManual = false;
-                }
-            }
-
-
-            telemetry.addData("Kp", aimPid.getP());
-            telemetry.addData("KF", aimPid.getF());
-            telemetry.addData("Kd", aimPid.getD());
-            telemetry.addData("State", autoState);
-            telemetry.addData("Manual Override", manualOverride);
-            telemetry.addData("Camera Blocked", cameraBlocked);
-            telemetry.addData("Yaw", yaw);
-            telemetry.addData("Distance (in)", "%.1f", distance);
-            telemetry.addData("Idle RPM", "%.0f", IDLE_RPM);
-            telemetry.addData("Idle Hood", "%.3f", IDLE_HOOD);
-            telemetry.addData("Locked RPM", "%.0f", lockedRPM);
-            telemetry.addData("Velocity", "%.0f", shootMotor.getVelocity());
-            telemetry.addData("Hood", "%.3f", hoodServo.getPosition());
-            telemetry.addData("TX", "%.3f", getTx(20));
-            telemetry.update();
         }
     }
 
+    // =========================================================
+    //  Shoot sequence initiation
+    //  Saves intake state, kills intake, then transitions to
+    //  AIMING (auto) or SPINNING (manual).
+    // =========================================================
+    private double startShootSequence(double yaw) {
+        if (manualOverride) {
+            preShootIntakeState = intakeOn;
+            intakeOn = 0;
+            intakeMotor.setPower(0);
+            velocityLocked = true;
+            lockedRPM      = MANUAL_RPM;
+            lockedHood     = MANUAL_HOOD;
+            autoState      = AutoState.SPINNING;
+        } else if (cameraBlocked) {
+            if (!hasRumbledForBlock) {
+                gamepad1.rumble(1.0, 1.0, 500);
+                hasRumbledForBlock = true;
+            }
+        } else {
+            preShootIntakeState = intakeOn;
+            intakeOn = 0;
+            intakeMotor.setPower(0);
+            distance           = clampDistance(getStableDistance());
+            velocityLocked     = true;
+            lockedRPM          = controlPointsRPM.get(distance);
+            lockedHood         = controlPointsHood.get(distance);
+            // Reset PID so stale integral/derivative don't kick the robot on entry
+            aimPid = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
+            autoState          = AutoState.AIMING;
+            hasRumbledForBlock = false;
+        }
+        return yaw;
+    }
 
-    // ───── Distance Functions ─────
-    private double distanceFromTag(double tagID) {
-        List<LLResultTypes.FiducialResult> r = limelight.getLatestResult().getFiducialResults();
-        if (r.isEmpty()) {
-            light.setPosition(0.388);
-            return 0.0;
+    // =========================================================
+    //  Drive
+    // =========================================================
+    private void driveMecanum(double axial, double lateral, double yaw) {
+        double d = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
+        leftFrontDrive.setPower((axial + lateral + yaw) / d);
+        rightFrontDrive.setPower((axial - lateral - yaw) / d);
+        leftBackDrive.setPower((axial - lateral + yaw) / d);
+        rightBackDrive.setPower((axial + lateral - yaw) / d);
+    }
 
+    // =========================================================
+    //  PV Shooter controller
+    //
+    //   power = kS  +  kV × target  +  kP × (target − actual)
+    //
+    //   kS  — overcomes static friction
+    //   kV  — open-loop feedforward; maps target velocity to approximate power
+    //   kP  — proportional term that closes the loop on remaining velocity error
+    // =========================================================
+    private void setShooterPV(double targetRPM) {
+        if (targetRPM <= 0 || shooterOverride) {
+            shootMotor.setPower(0);
+            shootMotor2.setPower(0);
+            return;
         }
 
-        for (LLResultTypes.FiducialResult i : r) {
-            if (i != null && i.getFiducialId() == tagID) {
+        double shootVel   = shootMotor.getVelocity();
+        double shootPower = kS + (kV * targetRPM) + (kP * (targetRPM - shootVel));
+
+        shootMotor.setPower(clamp(shootPower, -1, 1));
+        shootMotor2.setPower(clamp(shootPower, -1, 1));
+    }
+
+    /** Returns true when shooter velocity is within rpmTolerance of target. */
+    private boolean atRPMTarget(double targetRPM) {
+        return Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance;
+    }
+
+    private void applyShooterPower(double targetRPM, double hoodTarget) {
+        if (manualOverride) {
+            setShooterPV(MANUAL_RPM);
+            hoodServo.setPosition(MANUAL_HOOD);
+        } else if (!shooterOverride) {
+            setShooterPV(targetRPM);
+            hoodServo.setPosition(hoodTarget);
+            lastAutoRPM = targetRPM;
+        } else {
+            setShooterPV(0);
+        }
+    }
+
+    // =========================================================
+    //  Auto-shoot state machine  (SPINNING / FIRING)
+    // =========================================================
+    private void runStateMachine(double targetRPM) {
+        switch (autoState) {
+
+            case SPINNING:
+                // Intake is off during spin-up (killed in startShootSequence)
+                if (cameraBlocked && !manualOverride) {
+                    abortSequence("blocked during spin");
+                } else if (atRPMTarget(targetRPM)) {
+                    autoState = AutoState.FIRING;
+                }
+                break;
+
+            case FIRING:
+                if (cameraBlocked && !manualOverride) {
+                    blockServo.setPosition(BLOCK_SERVO_DOWN);
+                    isBlocking    = false;
+                    intakeStarted = false;
+                    abortSequence("blocked during fire");
+                    intakeOn = preShootIntakeState;
+                    applyIntakePower();
+                    break;
+                }
+
+                // Raise block servo once on entry — intake NOT started yet
+                if (!isBlocking) {
+                    isBlocking = true;
+                    blockTimer.reset();
+                    blockServoUpTimer.reset();
+                    intakeStarted = false;
+                    blockServo.setPosition(BLOCK_SERVO_UP);
+                }
+
+                // Start intake only after the delay has elapsed
+                if (!intakeStarted && blockServoUpTimer.milliseconds() >= BLOCK_INTAKE_DELAY_MS) {
+                    intakeStarted = true;
+                    if (distance > 110) {
+                        intakeMotor.setPower(LONG_RANGE_INTAKE_SPEED);
+                    } else {
+                        intakeMotor.setPower(-1.0);
+                    }
+                    intakeOn = 1;
+                }
+
+                // Close servo after full duration and return to IDLE
+                if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
+                    blockServo.setPosition(BLOCK_SERVO_DOWN);
+                    isBlocking     = false;
+                    intakeStarted  = false;
+                    velocityLocked = false;
+                    autoState      = AutoState.IDLE;
+                    intakeOn       = preShootIntakeState;
+                    applyIntakePower();
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Applies motor power matching the current intakeOn state.
+     * Called whenever intakeOn is restored after a shoot sequence.
+     */
+    private void applyIntakePower() {
+        switch (intakeOn) {
+            case 1:  intakeMotor.setPower(-1); break;
+            case 2:  intakeMotor.setPower( 1); break;
+            default: intakeMotor.setPower( 0); break;
+        }
+    }
+
+    /** Cancel any active shoot sequence and return to idle. */
+    private void abortSequence(String reason) {
+        if (!hasRumbledForBlock) {
+            gamepad1.rumble(1.0, 1.0, 500);
+            hasRumbledForBlock = true;
+        }
+        autoState      = AutoState.IDLE;
+        velocityLocked = false;
+        isBlocking     = false;
+        blockServo.setPosition(BLOCK_SERVO_DOWN);
+        telemetry.addData("Abort", reason);
+    }
+
+    // =========================================================
+    //  Manual block servo  (right bumper)
+    // =========================================================
+    private void handleManualBlock() {
+        if (gamepad1.rightBumperWasPressed() && !isBlocking && autoState == AutoState.IDLE) {
+            isBlocking = true;
+            blockTimer.reset();
+            blockServo.setPosition(BLOCK_SERVO_UP);
+        }
+        if (isBlocking && autoState == AutoState.IDLE
+                && blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
+            blockServo.setPosition(BLOCK_SERVO_DOWN);
+            isBlocking = false;
+        }
+    }
+
+    // =========================================================
+    //  Camera / limelight helpers
+    // =========================================================
+    private void updateCameraBlockStatus() {
+        long now = System.currentTimeMillis();
+        if (now - lastValidTargetTime <= CAMERA_BLOCK_TIMEOUT_MS) {
+            cameraBlocked      = false;
+            hasRumbledForBlock = false;
+        } else {
+            cameraBlocked = true;
+        }
+    }
+
+    private double getTx(double targetID) {
+        LLResult result = limelight.getLatestResult();
+        if (result == null) return holdTx();
+
+        long now = System.currentTimeMillis();
+        for (LLResultTypes.FiducialResult f : result.getFiducialResults()) {
+            if (f != null && f.getFiducialId() == targetID) {
+                lastSeenTimeMs      = now;
+                lastValidTargetTime = now;
+                cameraBlocked       = false;
+                lastTx              = f.getTargetXDegrees();
+                return lastTx;
+            }
+        }
+        return holdTx();
+    }
+
+    private double holdTx() {
+        return (System.currentTimeMillis() - lastSeenTimeMs <= TARGET_HOLD_MS) ? lastTx : 0;
+    }
+
+    private double distanceFromTag(double tagID) {
+        LLResult result = limelight.getLatestResult();
+        if (result == null) { light.setPosition(0.388); return 0.0; }
+
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        if (fiducials.isEmpty()) { light.setPosition(0.388); return 0.0; }
+
+        for (LLResultTypes.FiducialResult f : fiducials) {
+            if (f != null && f.getFiducialId() == tagID) {
                 light.setPosition(0.728);
-                double x = i.getCameraPoseTargetSpace().getPosition().x / DistanceUnit.mPerInch;
-                double z = i.getCameraPoseTargetSpace().getPosition().z / DistanceUnit.mPerInch;
-                Vector e = new Vector();
-                e.setOrthogonalComponents(x, z);
-                return e.getMagnitude();
+                double x = f.getCameraPoseTargetSpace().getPosition().x / DistanceUnit.mPerInch;
+                double z = f.getCameraPoseTargetSpace().getPosition().z / DistanceUnit.mPerInch;
+                Vector v = new Vector();
+                v.setOrthogonalComponents(x, z);
+                return v.getMagnitude();
             }
         }
         return 0.0;
     }
 
-    private double clampDistance(double distance) {
-        if (distance < 22) return 23;
-
-        // Normal range
-        if (distance <= 80) return distance;
-
-        // Hold at 80 until we reach far range
-        if (distance < 110) return 79;
-
-        // Far range
-        if (distance <= 135) return distance;
-
-        // Clamp anything beyond far range
-        return 134;
-    }
-
-    private double distanceFromRed() {
-        return distanceFromTag(20);
-    }
-
-    public void createRPMControlPoints() {
-        controlPointsRPM.add(22, 1100);
-        controlPointsRPM.add(25, 1100);
-        controlPointsRPM.add(30, 1100);
-        controlPointsRPM.add(35, 1100);
-        controlPointsRPM.add(40, 1130);
-        controlPointsRPM.add(45, 1180);
-        controlPointsRPM.add(50, 1200);
-        controlPointsRPM.add(55, 1230);
-        controlPointsRPM.add(60, 1230);
-        controlPointsRPM.add(65, 1230);
-        controlPointsRPM.add(70, 1270);
-        controlPointsRPM.add(75, 1410);
-        controlPointsRPM.add(80, 1490);
-        controlPointsRPM.add(110, 1630);
-        controlPointsRPM.add(115, 1630);
-        controlPointsRPM.add(120, 1640);
-        controlPointsRPM.add(125, 1640);
-        controlPointsRPM.add(130, 1650);
-        controlPointsRPM.add(135, 1710);
-        controlPointsRPM.createLUT();
-
-    }
-
-
-    public void createHoodControlPoints() {
-        controlPointsHood.add(22, 0.482);
-        controlPointsHood.add(25, 0.482);
-        controlPointsHood.add(30, 0.482);
-        controlPointsHood.add(35, 0.482);
-        controlPointsHood.add(40, 0.482);
-        controlPointsHood.add(45, 0.482);
-        controlPointsHood.add(50, 0.484);
-        controlPointsHood.add(55, 0.490);
-        controlPointsHood.add(60, 0.490);
-        controlPointsHood.add(65, 0.497);
-        controlPointsHood.add(70, 0.500);
-        controlPointsHood.add(75, 0.500);
-        controlPointsHood.add(80, 0.514);
-        controlPointsHood.add(110, 0.522);
-        controlPointsHood.add(115, 0.522);
-        controlPointsHood.add(120, 0.524);
-        controlPointsHood.add(125, 0.526);
-        controlPointsHood.add(130, 0.526);
-        controlPointsHood.add(135, 0.526);
-        controlPointsHood.createLUT();
-    }
     private double getStableDistance() {
-        double d = distanceFromRed();
-        long now = System.currentTimeMillis();
-
+        double d   = distanceFromTag(20);
+        long   now = System.currentTimeMillis();
         if (d > 0) {
-            lastDistance = d;
+            lastDistance           = d;
             lastDistanceSeenTimeMs = now;
             return d;
         }
-
-        // Hold last known distance briefly
-        if (now - lastDistanceSeenTimeMs <= TARGET_HOLD_MS) {
-            return lastDistance;
-        }
-
+        if (now - lastDistanceSeenTimeMs <= TARGET_HOLD_MS) return lastDistance;
         return 0;
     }
 
-    private double getTx(double targetID) {
-        LLResult result = limelight.getLatestResult();
-        long now = System.currentTimeMillis();
-
-        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-        for (LLResultTypes.FiducialResult fiducial : fiducials) {
-            if (fiducial != null && fiducial.getFiducialId() == targetID) {
-                lastTx = fiducial.getTargetXDegrees();
-                lastSeenTimeMs = now;
-                lastValidTargetTime = now;
-                cameraBlocked = false;
-                return lastTx;
-            }
-        }
-
-        if (now - lastSeenTimeMs <= TARGET_HOLD_MS) {
-            return lastTx;
-        }
-
-        return 0;
+    /**
+     * Clamps raw distance into the two calibrated LUT ranges,
+     * holding at the edge values across the dead-band gap (~85–110 in).
+     */
+    private double clampDistance(double d) {
+        if (d < 22)   return 23;
+        if (d <= 85)  return d;
+        if (d < 110)  return 79;   // hold at last close-range point
+        if (d <= 135) return d;
+        return 134;
     }
-    private void updateCameraBlockStatus() {
-        long now = System.currentTimeMillis();
 
-        // If we have a valid target recently, camera is not blocked
-        if (now - lastValidTargetTime <= CAMERA_BLOCK_TIMEOUT_MS) {
-            cameraBlocked = false;
-            hasRumbledForBlock = false;
-        } else {
-            // No valid target for CAMERA_BLOCK_TIMEOUT_MS - camera is blocked
-            cameraBlocked = true;
-        }
+    // =========================================================
+    //  Lookup table construction
+    // =========================================================
+    private void buildLookupTables() {
+        // RPM vs distance (inches)
+        controlPointsRPM.add(22,  1000);
+        controlPointsRPM.add(25,  1000);
+        controlPointsRPM.add(30,  1000);
+        controlPointsRPM.add(35,  1100);
+        controlPointsRPM.add(40,  1100);
+        controlPointsRPM.add(45,  1100);
+        controlPointsRPM.add(50,  1140);
+        controlPointsRPM.add(55,  1150);
+        controlPointsRPM.add(60,  1200);
+        controlPointsRPM.add(65,  1200);
+        controlPointsRPM.add(70,  1250);
+        controlPointsRPM.add(75,  1250);
+        controlPointsRPM.add(80,  1280);
+        controlPointsRPM.add(85,  1280);
+        controlPointsRPM.add(110, 1360);
+        controlPointsRPM.add(115, 1365);
+        controlPointsRPM.add(120, 1380);
+        controlPointsRPM.add(125, 1390);
+        controlPointsRPM.add(130, 1440);
+        controlPointsRPM.add(135, 1450);
+        controlPointsRPM.createLUT();
+
+        // Hood position vs distance (inches)
+        controlPointsHood.add(22,  0.482);
+        controlPointsHood.add(25,  0.482);
+        controlPointsHood.add(30,  0.482);
+        controlPointsHood.add(35,  0.482);
+        controlPointsHood.add(40,  0.480);
+        controlPointsHood.add(45,  0.480);
+        controlPointsHood.add(50,  0.482);
+        controlPointsHood.add(55,  0.486);
+        controlPointsHood.add(60,  0.486);
+        controlPointsHood.add(65,  0.495);
+        controlPointsHood.add(70,  0.500);
+        controlPointsHood.add(75,  0.500);
+        controlPointsHood.add(80,  0.510);
+        controlPointsHood.add(85,  0.510);
+        controlPointsHood.add(110, 0.536);
+        controlPointsHood.add(115, 0.536);
+        controlPointsHood.add(120, 0.538);
+        controlPointsHood.add(125, 0.538);
+        controlPointsHood.add(130, 0.546);
+        controlPointsHood.add(135, 0.568);
+        controlPointsHood.createLUT();
+    }
+
+    // =========================================================
+    //  Telemetry
+    // =========================================================
+    private void updateTelemetry(double targetRPM, double hoodTarget, double yaw) {
+        double actualRPM  = shootMotor.getVelocity();
+        double rpmError   = targetRPM - actualRPM;
+        double shootPower = shootMotor.getPower();
+        double liftRPM    = shootMotor2.getVelocity();
+        double txAngle    = getTx(20);
+
+        // ── State ──────────────────────────────────────────────────────────
+        telemetry.addData("State/AutoState",      autoState.toString());
+        telemetry.addData("State/ManualOverride",  manualOverride);
+        telemetry.addData("State/ShooterOFF",      shooterOverride);
+        telemetry.addData("State/CameraBlocked",   cameraBlocked);
+        telemetry.addData("State/VelocityLocked",  velocityLocked);
+
+        // ── Intake ─────────────────────────────────────────────────────────
+        telemetry.addData("Intake/State",          intakeOn);
+        telemetry.addData("Intake/PreShootState",  preShootIntakeState);
+        telemetry.addData("Intake/Power",          intakeMotor.getPower());
+
+        // ── Shooter ────────────────────────────────────────────────────────
+        telemetry.addData("Shooter/TargetRPM",     targetRPM);
+        telemetry.addData("Shooter/ActualRPM",     actualRPM);
+        telemetry.addData("Shooter/LiftRPM",       liftRPM);
+        telemetry.addData("Shooter/LockedRPM",     lockedRPM);
+        telemetry.addData("Shooter/RPM_Error",     rpmError);
+        telemetry.addData("Shooter/AtTarget",      atRPMTarget(targetRPM));
+        telemetry.addData("Shooter/ShootPower",    shootPower);
+        telemetry.addData("Shooter/LiftPower",     shootMotor2.getPower());
+
+        // ── Hood ───────────────────────────────────────────────────────────
+        telemetry.addData("Hood/Target",           hoodTarget);
+        telemetry.addData("Hood/Position",         hoodServo.getPosition());
+
+        // ── PV Gains ───────────────────────────────────────────────────────
+        telemetry.addData("PV/kS",                 kS);
+        telemetry.addData("PV/kV",                 kV);
+        telemetry.addData("PV/kP",                 kP);
+        telemetry.addData("PV/term_kS",            kS);
+        telemetry.addData("PV/term_kV",            kV * targetRPM);
+        telemetry.addData("PV/term_kP",            kP * rpmError);
+
+        // ── Aim PIDF ───────────────────────────────────────────────────────
+        telemetry.addData("Aim/TX_degrees",        txAngle);
+        telemetry.addData("Aim/Yaw_output",        yaw);
+        telemetry.addData("Aim/Kp",                Kp_aim);
+        telemetry.addData("Aim/Ki",                Ki_aim);
+        telemetry.addData("Aim/Kd",                Kd_aim);
+        telemetry.addData("Aim/Kf",                Kf_aim);
+        telemetry.addData("Aim/Tolerance",         aimTolerance);
+
+        // ── Distance ───────────────────────────────────────────────────────
+        telemetry.addData("Distance/Raw_in",       distance);
+        telemetry.addData("Distance/Clamped_in",   clampDistance(distance));
+
+        // ── Block servo ────────────────────────────────────────────────────
+        telemetry.addData("Block/IsBlocking",      isBlocking);
+        telemetry.addData("Block/TimerMs",         blockTimer.milliseconds());
+
+        telemetry.update();
+    }
+
+    // =========================================================
+    //  Utility
+    // =========================================================
+    private static double clamp(double v, double min, double max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

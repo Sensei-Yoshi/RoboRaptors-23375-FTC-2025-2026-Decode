@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -19,20 +20,20 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @Autonomous(name = "9 Ball Blue")
 public class PedroAutoBlue extends OpMode {
     final double pushServoDown = 0.89;
-    final double pushServoUp = 0.3;
-    final double blockServoDown = 0.83;
-    final double blockServoUp = 0.3;
+    final double pushServoUp = 0.88;
+    final double blockServoDown = 0.75; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
-    private Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror(); // Start Pose of our robot.
-    private Pose scorePose = new Pose(103, 103, Math.toRadians(40)).mirror();
-    private Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();// Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
-    private Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
-    private Pose pickup2Pose = new Pose(90, 62, Math.toRadians(0)).mirror(); // Middle (Second Set) of Artifacts from the Spike Mark.
-    private Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
-    private Pose park = new Pose(113,74, Math.toRadians(0)).mirror();
-
+    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
+    private final Pose scorePose = new Pose(103, 103, Math.toRadians(40)).mirror();
+    private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();
+    private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror();
+    private final Pose pickup2Pose = new Pose(94, 60, Math.toRadians(0)).mirror();
+    private final Pose pickup3Pose = new Pose(128, 60, Math.toRadians(0)).mirror();
+    private final Pose park = new Pose(113,74, Math.toRadians(0)).mirror();
 
     private DcMotorEx shootMotor = null;
+    private DcMotorEx shootMotor2 = null;
     private Servo hoodServo = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
@@ -43,7 +44,7 @@ public class PedroAutoBlue extends OpMode {
     private PathChain scorePreload, runPickup, grabPickup1, scorePickup1, grabPickup2, scorePickup2, backUp, grabPickup3, scorePickup3, turnPath, parkRun;
 
     public void buildPaths() {
-        scorePreload = follower.pathBuilder()
+        scorePreload = follower.pathBuilder() //shoot first 3 balls
                 .addPath(new BezierLine(startPose, scorePose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
@@ -51,31 +52,39 @@ public class PedroAutoBlue extends OpMode {
                 .addPath(new BezierPoint(turnPose))
                 .setConstantHeadingInterpolation(turnPose.getHeading())
                 .build();
-        grabPickup1 = follower.pathBuilder()
+        grabPickup1 = follower.pathBuilder() //get next 3
                 //turnPose
-                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(),  pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)),  pickup1Pose))
                 //ConstantHeading
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
-        /* This is our scorePickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-        scorePickup1 = follower.pathBuilder()
+
+        scorePickup1 = follower.pathBuilder() //score 3
                 .addPath(new BezierLine(pickup1Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), Math.toRadians(138))
+                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), scorePose.getHeading())
+                /*
+                 - <45 towards the right, towards the gate
+                    - >45 towards left, away from gate
+                 */
                 .build();
-        /* This is our grabPickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-        grabPickup2 = follower.pathBuilder()
+
+        grabPickup2 = follower.pathBuilder() //gets next 3
                 .addPath(new BezierLine(scorePose, pickup2Pose))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2Pose.getHeading())
                 .build();
 
-        runPickup = follower.pathBuilder()
+        runPickup = follower.pathBuilder() //gets same 3 balls
                 .addPath(new BezierLine(pickup2Pose, pickup3Pose))
                 .setConstantHeadingInterpolation(pickup2Pose.getHeading())
                 .build();
-        /* This is our scorePickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-        scorePickup2 = follower.pathBuilder()
+
+        scorePickup2 = follower.pathBuilder() //scores the 3
                 .addPath(new BezierLine(pickup2Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(138))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
+                /*
+               - <45 towards the right, towards the gate
+                  - >45 towards left, away from gate
+               */
                 .build();
         /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup3 = follower.pathBuilder()
@@ -83,11 +92,11 @@ public class PedroAutoBlue extends OpMode {
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
                 .build();
         /* This is our scorePickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-        backUp = follower.pathBuilder()
+        backUp = follower.pathBuilder() //backs up
                 .addPath(new BezierLine(pickup3Pose, pickup2Pose))
                 .setConstantHeadingInterpolation(pickup2Pose.getHeading())
                 .build();
-        parkRun = follower.pathBuilder()
+        parkRun = follower.pathBuilder() //park
                 .addPath(new BezierLine(scorePose, park))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), park.getHeading())
                 .build();
@@ -100,6 +109,7 @@ public class PedroAutoBlue extends OpMode {
             case 0:
                 blockServo.setPosition(blockServoUp);
                 shootMotor.setVelocity(1110);
+                shootMotor2.setVelocity(1110); // Increase or decrease by 5
                 follower.followPath(scorePreload, true);
                 setPathState(1);
                 break;
@@ -107,18 +117,9 @@ public class PedroAutoBlue extends OpMode {
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
-                    intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    }
-                    telemetry.update();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    intakeMotor.setPower(-1);
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     blockServo.setPosition(blockServoDown);
@@ -138,29 +139,23 @@ public class PedroAutoBlue extends OpMode {
             case 3:
                 /* This case checks the robot's position and will wait until the robot position is close (1 inch away) from the scorePose's position */
                 if (!follower.isBusy()) {
+                    while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     intakeMotor.setPower(-1);
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    }
-                    /* Score Sample */
-                    /* Since this is a pathChain, we can have Pedro hold the end point while we are grabbing the sample */
-
-                    follower.followPath(grabPickup2, true);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup2, true);
                     setPathState(4);
 
                 }
                 break;
             case 4:
                 if (!follower.isBusy()) {
+                    intakeMotor.setPower(0);
                     follower.followPath(runPickup);
+                    intakeMotor.setPower(-1);
                     setPathState(5);
                 }
                 break;
@@ -174,6 +169,7 @@ public class PedroAutoBlue extends OpMode {
                 break;
             case 6:
                 if (!follower.isBusy()) {
+                    intakeMotor.setPower(0);
                     follower.followPath(scorePickup2, 0.8, true);
                     setPathState(7);
                 }
@@ -181,19 +177,10 @@ public class PedroAutoBlue extends OpMode {
             case 7:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1) {}
-                    intakeMotor.setPower(-1);
+                    while (pathTimer.getElapsedTimeSeconds() < 1.5) {}
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    }
-                    telemetry.update();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    intakeMotor.setPower(-1);
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 1) {}
                     blockServo.setPosition(blockServoDown);
@@ -239,13 +226,16 @@ public class PedroAutoBlue extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
+        shootMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shootMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
         hoodServo.setPosition(hoodServoClose);
         buildPaths();

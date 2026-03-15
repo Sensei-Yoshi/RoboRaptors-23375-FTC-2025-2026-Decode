@@ -1,0 +1,359 @@
+package org.firstinspires.ftc.teamcode.Autos;
+
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.BezierPoint;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
+import com.pedropathing.util.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+
+@Autonomous(name = "18 Ball Red")
+public class EighteenBallAutoRed extends OpMode {
+    final double pushServoDown = 0.89;
+    final double pushServoUp = 0.3;
+    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoUp = 0.25;
+    final double hoodServoClose = 0.5;
+    //Change:
+    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40));
+    private final Pose scorePose = new Pose(85, 85, Math.toRadians(41));
+    private final Pose pickup1Pose = new Pose(123, 83, Math.toRadians(0));
+    private final Pose pickup3Pose = new Pose(126, 59, Math.toRadians(0));
+    private final Pose pickup5Pose = new Pose(126, 35, Math.toRadians(0));
+    private final Pose park = new Pose(113, 74, Math.toRadians(0));
+    private final Pose gatePose = new Pose(120, 64, Math.toRadians(0));
+    private final Pose pickGatePose = new Pose(127.5, 49.5, Math.toRadians(75));
+    private final Pose runGatePose = new Pose(127.5, 58, Math.toRadians(75));
+    private final Pose finalScorePose = new Pose(95, 112, Math.toRadians(35));
+
+
+    private DcMotorEx shootMotor = null;
+    private DcMotorEx shootMotor2 = null;
+    private Servo hoodServo = null;
+    private Servo pushServo = null;
+    private Servo blockServo = null;
+    private DcMotorEx intakeMotor = null;
+    private Follower follower;
+    private Timer pathTimer, actionTimer, opmodeTimer;
+    private int pathState;
+    private PathChain scorePreload, grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, parkRun, gatePush, scoreGate, pickGate, runGate;
+
+    public void buildPaths() {
+        scorePreload = follower.pathBuilder() //shoot first 3 balls
+                .addPath(new BezierLine(startPose, scorePose))
+                .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
+                .build();
+
+        gatePush = follower.pathBuilder()
+                .addPath(new BezierCurve(scorePose, (new Pose(79, 67)), gatePose))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), gatePose.getHeading())
+                .build();
+
+        grabPickup1 = follower.pathBuilder() //get next 3
+                //turnPose
+                .addPath(new BezierLine(scorePose,  pickup1Pose))
+                //ConstantHeading
+                .setConstantHeadingInterpolation(pickup1Pose.getHeading())
+                .build();
+
+        scorePickup1 = follower.pathBuilder() //score 3
+                .addPath(new BezierLine(pickup1Pose, finalScorePose))
+                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), finalScorePose.getHeading())
+                /*
+                 - <45 towards the right, towards the gate
+                    - >45 towards left, away from gate
+                 */
+                .build();
+
+        grabPickup2 = follower.pathBuilder() //gets next 3
+                .addPath(new BezierCurve(scorePose,(new Pose(82, 55)), pickup3Pose))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
+                .build();
+
+
+        scorePickup2 = follower.pathBuilder() //scores the 3
+                .addPath(new BezierLine(pickup3Pose, scorePose))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
+                /*
+               - <45 towards the right, towards the gate
+                  - >45 towards left, away from gate
+               */
+                .build();
+        /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
+        grabPickup3 = follower.pathBuilder()
+                .addPath(new BezierCurve(scorePose, (new Pose(64, 17)), (new Pose(98, 37)), pickup5Pose))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup5Pose.getHeading())
+                .build();
+
+        /* This is our scorePickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
+
+        parkRun = follower.pathBuilder() //park
+                .addPath(new BezierLine(scorePose, park))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), park.getHeading())
+                .build();
+        scorePickup3 = follower.pathBuilder() //scores the 3
+                .addPath(new BezierLine(pickup5Pose, scorePose))
+                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), scorePose.getHeading())
+                /*
+               - <45 towards the right, towards the gate
+                  - >45 towards left, away from gate
+               */
+                .build();
+        scoreGate = follower.pathBuilder()
+                .addPath(new BezierCurve(runGatePose, (new Pose(79, 67)), scorePose))
+                .setLinearHeadingInterpolation(runGatePose.getHeading(), scorePose.getHeading())
+                .build();
+        pickGate = follower.pathBuilder()
+                .addPath(new BezierLine(gatePose, pickGatePose))
+                .setLinearHeadingInterpolation(gatePose.getHeading(),pickGatePose.getHeading())
+                .build();
+        runGate = follower.pathBuilder()
+                .addPath(new BezierLine(pickGatePose, runGatePose))
+                .setConstantHeadingInterpolation(pickGatePose.getHeading())
+                .build();
+
+
+
+
+
+
+    }
+
+    public void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0:
+                blockServo.setPosition(blockServoUp);
+                shootMotor.setVelocity(1220);
+                shootMotor2.setVelocity(1220);// Increase or decrease by 5
+                follower.followPath(scorePreload,true);
+                setPathState(1);
+                break;
+            case 1:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.3) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup2, true);
+                    setPathState(2);
+                }
+                break;
+            case 2:
+                if (!follower.isBusy()) {
+                    follower.followPath(scorePickup2, true);
+                    intakeMotor.setPower(0);
+                    setPathState(3);
+                }
+                break;
+            case 3:
+                if (!follower.isBusy()) {
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(gatePush,true);
+                    setPathState(4);
+                }
+                break;
+            case 4:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
+                    follower.followPath(pickGate, true);
+                    setPathState(5);
+                }
+                break;
+            case 5:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    follower.followPath(runGate, true);
+                    setPathState(6);
+                }
+                break;
+            case 6:
+                if (!follower.isBusy()) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    follower.followPath(scoreGate, true);
+                    setPathState(20);
+                }
+                break;
+            case 20:
+                if (!follower.isBusy()) {
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(gatePush, true);
+                    setPathState(7);
+                }
+                break;
+            case 7:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
+                    follower.followPath(pickGate, true);
+                    setPathState(8);
+                }
+                break;
+            case 8:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    follower.followPath(runGate, true);
+                    setPathState(9);
+                }
+                break;
+            case 9:
+                if (!follower.isBusy()) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    follower.followPath(scoreGate, true);
+                    setPathState(10);
+                }
+                break;
+            case 10:
+                if (!follower.isBusy()) {
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup3, true);
+                    setPathState(11);
+                }
+                break;
+            case 11:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    follower.followPath(scorePickup3, true);
+                    intakeMotor.setPower(0);
+                    setPathState(12);
+                }
+                break;
+            case 12:
+                if (!follower.isBusy()) {
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    follower.followPath(grabPickup1, true);
+
+                    setPathState(13);
+                }
+            case 13:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    follower.followPath(scorePickup1,true);
+                    hoodServo.setPosition(0.52);
+                    intakeMotor.setPower(0);
+                    setPathState(14);
+                }
+                break;
+            case 14:
+                if (!follower.isBusy()) {
+                    blockServo.setPosition(blockServoUp);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.1) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.5) {}
+                    blockServo.setPosition(blockServoDown);
+                    setPathState(15);
+                }
+                break;
+            case 15:
+                if (!follower.isBusy()) {
+                    setPathState(-1);
+                }
+                break;
+        }
+    }
+
+    /**
+     * These change the states of the paths and actions. It will also reset the timers of the individual switches
+     **/
+    public void setPathState(int pState) {
+        pathState = pState;
+        pathTimer.resetTimer();
+    }
+
+    @Override
+    public void loop() {
+        // These loop the movements of the robot, these must be called continuously in order to work
+        follower.update();
+        autonomousPathUpdate();
+        // Feedback to Driver Hub for debugging
+        telemetry.addData("path state", pathState);
+        telemetry.addData("x", follower.getPose().getX());
+        telemetry.addData("y", follower.getPose().getY());
+        telemetry.addData("heading", Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.update();
+    }
+
+    /**
+     * This method is called once at the init of the OpMode.
+     **/
+    @Override
+    public void init() {
+        pathTimer = new Timer();
+        opmodeTimer = new Timer();
+        opmodeTimer.resetTimer();
+        follower = Constants.createFollower(hardwareMap);
+        intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
+        shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
+        pushServo = hardwareMap.get(Servo.class, "pushServo");
+        blockServo = hardwareMap.get(Servo.class, "blockServo");
+        hoodServo = hardwareMap.get(Servo.class, "hoodServo");
+        shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
+        shootMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shootMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        pushServo.setPosition(pushServoDown);
+        blockServo.setPosition(blockServoDown);
+        hoodServo.setPosition(hoodServoClose);
+        buildPaths();
+        follower.setStartingPose(startPose);
+    }
+
+    /**
+     * This method is called continuously after Init while waiting for "play".
+     **/
+    @Override
+    public void init_loop() {
+    }
+
+    /**
+     * This method is called once at the start of the OpMode.
+     * It runs all the setup actions, including building paths and starting the path system
+     **/
+    @Override
+    public void start() {
+        opmodeTimer.resetTimer();
+        setPathState(0);
+    }
+
+    /**
+     * We do not use this because everything should automatically disable
+     **/
+    @Override
+    public void stop() {
+    }
+}

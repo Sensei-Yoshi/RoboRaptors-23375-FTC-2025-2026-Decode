@@ -58,14 +58,14 @@ public class NewTeleOp extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Aim PIDF constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double Kp_aim       = 0.01;
+    public static double Kp_aim       = 0.008;
     public static double Ki_aim       = 0.0;
-    public static double Kd_aim       = 0.0015;
-    public static double Kf_aim       = 0.18;
-    public static double aimTolerance = 1.0;
+    public static double Kd_aim       = 0.0014;
+    public static double Kf_aim       = 0.19;
+    public static double aimTolerance = 1.23;
 
     // Max yaw output when distance > LONG_RANGE_AIM_THRESHOLD
-    public static double AIM_MAX_YAW_LONG_RANGE    = 0.5;
+    public static double AIM_MAX_YAW_LONG_RANGE    = 1;
     public static double LONG_RANGE_AIM_THRESHOLD  = 110.0;
 
     private PIDFController aimPid;
@@ -84,12 +84,12 @@ public class NewTeleOp extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Block servo
     // ─────────────────────────────────────────────
-    private static final double BLOCK_SERVO_DOWN      = 0.78;
+    private static final double BLOCK_SERVO_DOWN      = 0.8;
     private static final double BLOCK_SERVO_UP        = 0.25;
     private static final double PUSH_SERVO_DOWN       = 0.9;
     public  static       double BLOCK_OPEN_DURATION_MS = 1000;
 
-    public static double LONG_RANGE_INTAKE_SPEED = -0.7;
+    public static double LONG_RANGE_INTAKE_SPEED = -0.85;
 
     private final ElapsedTime blockTimer        = new ElapsedTime();
     private final ElapsedTime blockServoUpTimer = new ElapsedTime();

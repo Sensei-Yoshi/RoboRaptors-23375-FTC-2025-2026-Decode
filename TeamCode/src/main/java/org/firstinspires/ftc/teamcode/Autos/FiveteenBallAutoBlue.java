@@ -20,47 +20,21 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 public class FiveteenBallAutoBlue extends OpMode {
     final double pushServoDown = 0.89;
     final double pushServoUp = 0.3;
-    final double blockServoDown = 0.83;
-    final double blockServoUp = 0.3;
+    final double blockServoDown = 0.84; //if two balls are shooting at once: <0.81 == up and >0.81 == down
+    final double blockServoUp = 0.25;
     final double hoodServoClose = 0.48;
     //Change:
-    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror(); // Start Pose of our robot.
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(40)).mirror();
-    /*
-    - keep x and y same
-     -increase or decrease x and y by 2
-     - <45 towards the right, towards the gate
-     - >45 towards left, away from gate
-     */
-    private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror(); //ignore
+    private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
+    private final Pose scorePose = new Pose(103, 103, Math.toRadians(41)).mirror();
     private final Pose pickup1Pose = new Pose(125, 85, Math.toRadians(0)).mirror();
-    /*
-    smashing into wall = less x
-    not getting all balls = more x
-    not aligned with balls = change y
-     */
-    private final Pose pickup2Pose = new Pose(90, 60 , Math.toRadians(0)).mirror();
-    /*
-    pickup2Pose y = pickup3Pose y
-    if not aligned = change y
-
-     */
-    private final Pose pickup3Pose = new Pose(126, 62, Math.toRadians(0)).mirror();
-
-    private final Pose pickup4Pose = new Pose(90, 40, Math.toRadians(0)).mirror();
-    private final Pose pickup5Pose = new Pose(128, 40, Math.toRadians(0)).mirror();
-
-    /*
-    if not aligned = change y
-    smashing into wall = less x
-    not getting all balls = more x
-    not aligned with balls = change y
-     */
-
-    private final Pose park = new Pose(113,74, Math.toRadians(0)).mirror();
-    private final Pose gatePose = new Pose(133,64.5, Math.toRadians(35)).mirror();
+    private final Pose pickup3Pose = new Pose(126, 59, Math.toRadians(0)).mirror();
+    private final Pose pickup5Pose = new Pose(126, 35, Math.toRadians(0)).mirror();
+    private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
+    private final Pose gatePose = new Pose(133, 58.5, Math.toRadians(33)).mirror();
+    private final Pose pickGatePose = new Pose(133, 58, Math.toRadians(70)).mirror();
 
     private DcMotorEx shootMotor = null;
+    private DcMotorEx shootMotor2 = null;
     private Servo hoodServo = null;
     private Servo pushServo = null;
     private Servo blockServo = null;
@@ -68,19 +42,16 @@ public class FiveteenBallAutoBlue extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
-    private PathChain scorePreload, runPickup, grabPickup1, scorePickup1, grabPickup2, scorePickup2, backUp, grabPickup3, scorePickup3, turnPath, parkRun, gatePush, runPickup2, scoreGate;
+    private PathChain scorePreload, grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, parkRun, gatePush, scoreGate, pickGate;
 
     public void buildPaths() {
         scorePreload = follower.pathBuilder() //shoot first 3 balls
                 .addPath(new BezierLine(startPose, scorePose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .build();
-        turnPath = follower.pathBuilder()
-                .addPath(new BezierPoint(turnPose))
-                .setConstantHeadingInterpolation(turnPose.getHeading())
-                .build();
+
         gatePush = follower.pathBuilder()
-                .addPath(new BezierCurve(scorePose, (new Pose(75, 67)).mirror(), gatePose))
+                .addPath(new BezierCurve(scorePose, (new Pose(79, 67)).mirror(), gatePose))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), gatePose.getHeading())
                 .build();
 
@@ -93,7 +64,7 @@ public class FiveteenBallAutoBlue extends OpMode {
 
         scorePickup1 = follower.pathBuilder() //score 3
                 .addPath(new BezierLine(gatePose, scorePose))
-                .setLinearHeadingInterpolation(gatePose.getHeading(), Math.toRadians(138))
+                .setLinearHeadingInterpolation(gatePose.getHeading(), scorePose.getHeading())
                 /*
                  - <45 towards the right, towards the gate
                     - >45 towards left, away from gate
@@ -101,18 +72,14 @@ public class FiveteenBallAutoBlue extends OpMode {
                 .build();
 
         grabPickup2 = follower.pathBuilder() //gets next 3
-                .addPath(new BezierCurve(scorePose,(new Pose(48, 69)).mirror(), pickup3Pose))
+                .addPath(new BezierCurve(scorePose,(new Pose(49, 67)).mirror(), pickup3Pose))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
                 .build();
 
-        runPickup = follower.pathBuilder() //gets same 3 balls
-                .addPath(new BezierLine(pickup2Pose, pickup3Pose))
-                .setConstantHeadingInterpolation(pickup2Pose.getHeading())
-                .build();
 
         scorePickup2 = follower.pathBuilder() //scores the 3
-                .addPath(new BezierCurve(pickup3Pose,(new Pose(48, 69)).mirror(), scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(138))
+                .addPath(new BezierCurve(pickup3Pose,(new Pose(49, 67)).mirror(), scorePose))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
                 /*
                - <45 towards the right, towards the gate
                   - >45 towards left, away from gate
@@ -120,34 +87,34 @@ public class FiveteenBallAutoBlue extends OpMode {
                 .build();
         /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
         grabPickup3 = follower.pathBuilder()
-                .addPath(new BezierCurve(scorePose, (new Pose(65, 29)).mirror(), pickup5Pose))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup4Pose.getHeading())
+                .addPath(new BezierCurve(scorePose, (new Pose(64, 17)).mirror(), (new Pose(98, 37)).mirror(), pickup5Pose))
+                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup5Pose.getHeading())
                 .build();
-        runPickup2 = follower.pathBuilder() //gets same 3 balls
-                .addPath(new BezierLine(pickup4Pose, pickup5Pose))
-                .setConstantHeadingInterpolation(pickup4Pose.getHeading())
-                .build();
+
         /* This is our scorePickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-        backUp = follower.pathBuilder() //backs up
-                .addPath(new BezierLine(pickup3Pose, pickup2Pose))
-                .setConstantHeadingInterpolation(pickup2Pose.getHeading())
-                .build();
+
         parkRun = follower.pathBuilder() //park
                 .addPath(new BezierLine(scorePose, park))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), park.getHeading())
                 .build();
         scorePickup3 = follower.pathBuilder() //scores the 3
                 .addPath(new BezierLine(pickup5Pose, scorePose))
-                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), Math.toRadians(138))
+                .setLinearHeadingInterpolation(pickup5Pose.getHeading(), scorePose.getHeading())
                 /*
                - <45 towards the right, towards the gate
                   - >45 towards left, away from gate
                */
                 .build();
         scoreGate = follower.pathBuilder()
-                .addPath(new BezierCurve(gatePose, (new Pose(73, 67)).mirror(), scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), Math.toRadians(138))
+                .addPath(new BezierCurve(gatePose, (new Pose(79, 67)).mirror(), scorePose))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
                 .build();
+        pickGate = follower.pathBuilder()
+                .addPath(new BezierLine(gatePose, pickGatePose))
+                .setConstantHeadingInterpolation(pickGatePose.getHeading())
+                .build();
+
+
 
 
     }
@@ -156,34 +123,19 @@ public class FiveteenBallAutoBlue extends OpMode {
         switch (pathState) {
             case 0:
                 blockServo.setPosition(blockServoUp);
-                shootMotor.setVelocity(1110); // Increase or decrease by 5
+                shootMotor.setVelocity(1110);
+                shootMotor2.setVelocity(1110);// Increase or decrease by 5
                 follower.followPath(scorePreload, true);
                 setPathState(1);
                 break;
             case 1:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 0.9) {
-                    }
+                    while (pathTimer.getElapsedTimeSeconds() < 0.4) {}
                     intakeMotor.setPower(-1);
-                    blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
-                    }
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }//delay, 0.1 second increase or decrease {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }
-                    }
-                    telemetry.update();
                     pathTimer.resetTimer();
-                    //while (pathTimer.getElapsedTimeSeconds() < 0.) {}
+                    while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
-                    /* Since this is a pathChain, we can have Pedro hold the end point while we are grabbing the sample */
                     follower.followPath(grabPickup2, true);
                     setPathState(2);
                 }
@@ -191,29 +143,26 @@ public class FiveteenBallAutoBlue extends OpMode {
             case 2:
                 if (!follower.isBusy()) {
                     follower.followPath(scorePickup2, 0.9, true);
+                    intakeMotor.setPower(0);
                     setPathState(3);
                 }
                 break;
             case 3:
                 if (!follower.isBusy()) {
-                    pathTimer.resetTimer();
-                    intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    }
-                    telemetry.update();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(gatePush,true);
-                    setPathState(4);
+                    setPathState(20);
                 }
                 break;
+            case 20: if (!follower.isBusy()) {
+                follower.followPath(pickGate,true);
+                setPathState(4);
+            }
             case 4:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
@@ -225,21 +174,11 @@ public class FiveteenBallAutoBlue extends OpMode {
                 break;
             case 5:
                 if (!follower.isBusy()) {
-                    pathTimer.resetTimer();
-                    intakeMotor.setPower(-1);
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
-                    }
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }
-                    }
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(grabPickup1, true);
                     setPathState(6);
@@ -258,19 +197,10 @@ public class FiveteenBallAutoBlue extends OpMode {
             case 7:
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {
-                    }
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
                     intakeMotor.setPower(-1);
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {
-                        }
-                    }
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(grabPickup3, true);
                     setPathState(8);
@@ -281,23 +211,18 @@ public class FiveteenBallAutoBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {
                     }
                     follower.followPath(scorePickup3,0.9,true);
+                    intakeMotor.setPower(0);
                     setPathState(9);
                 }
                 break;
             case 9:
                 if (!follower.isBusy()) {
-                    pathTimer.resetTimer();
                     blockServo.setPosition(blockServoUp);
-                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
-                    for (int x = 0; x < 3; x++) {
-                        pushServo.setPosition(pushServoUp);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                        pushServo.setPosition(pushServoDown);
-                        pathTimer.resetTimer();
-                        while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
-                    }
-                    telemetry.update();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
+                    intakeMotor.setPower(-1);
+                    pathTimer.resetTimer();
+                    while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
+                    blockServo.setPosition(blockServoDown);
                     follower.followPath(parkRun,true);
                     setPathState(10);
                 }
@@ -342,11 +267,15 @@ public class FiveteenBallAutoBlue extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+        shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
         pushServo = hardwareMap.get(Servo.class, "pushServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
+        shootMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shootMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         pushServo.setPosition(pushServoDown);
         blockServo.setPosition(blockServoDown);
@@ -379,4 +308,3 @@ public class FiveteenBallAutoBlue extends OpMode {
     public void stop() {
     }
 }
-

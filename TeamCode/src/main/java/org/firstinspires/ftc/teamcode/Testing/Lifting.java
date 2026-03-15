@@ -68,8 +68,7 @@ public class Lifting extends LinearOpMode {
 
         shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
-        //liftMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        //liftMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+
 
 
         leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -104,11 +103,11 @@ public class Lifting extends LinearOpMode {
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
-            liftMotor.setPower(gamepad2.left_stick_y);
 
-            //liftMotor.setTargetPosition(-1119);
-            //liftMotor.setPower(0.8);
-            //liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            liftMotor.setTargetPosition(-1150);
+            liftMotor.setPower(1);
+            liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
 
 

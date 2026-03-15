@@ -54,7 +54,7 @@ public class PedroAutoBlue extends OpMode {
                 .build();
         grabPickup1 = follower.pathBuilder() //get next 3
                 //turnPose
-                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)),  pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(),  pickup1Pose))
                 //ConstantHeading
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();

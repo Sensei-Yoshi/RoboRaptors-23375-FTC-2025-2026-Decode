@@ -1,5 +1,4 @@
 
-
 import static com.qualcomm.robotcore.hardware.Gamepad.LED_DURATION_CONTINUOUS;
 
 import com.acmerobotics.dashboard.FtcDashboard;
@@ -36,7 +35,7 @@ public class TeleOpBlue extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Hardware
     // ─────────────────────────────────────────────
-    private DcMotorEx   shootMotor, intakeMotor, shootMotor2;
+    private DcMotorEx   shootMotor, intakeMotor, shootMotor2, liftMotor;
     private Servo       hoodServo, blockServo, pushServo, light;
     private DcMotor     leftFrontDrive, leftBackDrive, rightFrontDrive, rightBackDrive;
     private Limelight3A limelight;
@@ -50,18 +49,23 @@ public class TeleOpBlue extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Shooter PV constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double kS = 0.09;     // static / friction offset
-    public static double kV = 0.0004;  // velocity feedforward (power per tick/s)
-    public static double kP = 0.01;     // proportional error gain
+    public static double kS = 0.09;
+    public static double kV = 0.0004;
+    public static double kP = 0.01;
     public static double BLOCK_INTAKE_DELAY_MS = 300;
+
     // ─────────────────────────────────────────────
     //  Aim PIDF constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double Kp_aim  = 0.01;
-    public static double Ki_aim  = 0.0;
-    public static double Kd_aim  = 0.0007;
-    public static double Kf_aim  = 0.18;  // feedforward (sign-based static friction)
-    public static double aimTolerance = 1;
+    public static double Kp_aim       = 0.008;
+    public static double Ki_aim       = 0.0;
+    public static double Kd_aim       = 0.0014;
+    public static double Kf_aim       = 0.19;
+    public static double aimTolerance = 1.23;
+
+    // Max yaw output when distance > LONG_RANGE_AIM_THRESHOLD
+    public static double AIM_MAX_YAW_LONG_RANGE   = 1.0;
+    public static double LONG_RANGE_AIM_THRESHOLD = 110.0;
 
     private PIDFController aimPid;
 
@@ -79,18 +83,25 @@ public class TeleOpBlue extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Block servo
     // ─────────────────────────────────────────────
-    private static final double BLOCK_SERVO_DOWN       = 0.78;
-    private static final double BLOCK_SERVO_UP         = 0.25;
-    private static final double PUSH_SERVO_DOWN        = 0.9;
+    private static final double BLOCK_SERVO_DOWN     = 0.8;
+    private static final double BLOCK_SERVO_UP       = 0.25;
+    private static final double PUSH_SERVO_DOWN      = 0.9;
     public  static       double BLOCK_OPEN_DURATION_MS = 1000;
 
-    // Intake speed used when resuming during FIRING at long range (> 110 in)
-    public static double LONG_RANGE_INTAKE_SPEED = -0.8;
+    public static double LONG_RANGE_INTAKE_SPEED = -0.85;
 
-    private final ElapsedTime blockTimer = new ElapsedTime();
-    private boolean isBlocking = false;
+    private final ElapsedTime blockTimer        = new ElapsedTime();
     private final ElapsedTime blockServoUpTimer = new ElapsedTime();
+    private boolean isBlocking    = false;
     private boolean intakeStarted = false;
+
+    // ─────────────────────────────────────────────
+    //  Lift constants  (tune via Dashboard)
+    // ─────────────────────────────────────────────
+    public static int    LIFT_UP_POSITION = -1150;
+    public static double LIFT_POWER       = 1.0;
+
+    private boolean liftUp = false;
 
     // ─────────────────────────────────────────────
     //  Limelight / distance state
@@ -108,7 +119,7 @@ public class TeleOpBlue extends LinearOpMode {
     private boolean hasRumbledForBlock = false;
 
     // ─────────────────────────────────────────────
-    //  Velocity lock  (snapshot on trigger press)
+    //  Velocity lock
     // ─────────────────────────────────────────────
     private boolean velocityLocked = false;
     private double  lockedRPM      = 0.0;
@@ -117,10 +128,10 @@ public class TeleOpBlue extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Mode flags
     // ─────────────────────────────────────────────
-    private boolean shooterOverride     = false; // true = shooter OFF
-    private boolean manualOverride      = false; // true = fixed RPM/hood
-    private int     intakeOn            = 0;     // 0=off, 1=in, 2=out
-    private int     preShootIntakeState = 0;     // saved intake state before shoot sequence
+    private boolean shooterOverride     = false;
+    private boolean manualOverride      = false;
+    private int     intakeOn            = 0;
+    private int     preShootIntakeState = 0;
 
     // ─────────────────────────────────────────────
     //  Misc
@@ -163,11 +174,17 @@ public class TeleOpBlue extends LinearOpMode {
                     double error = getTx(20);
                     aimPid.updateError(error);
                     aimPid.updateFeedForwardInput(Math.signum(error));
-                    yaw = aimPid.run();
+
+                    double rawYaw   = aimPid.run();
+                    double yawLimit = (distance > LONG_RANGE_AIM_THRESHOLD)
+                            ? AIM_MAX_YAW_LONG_RANGE
+                            : 1.0;
+                    yaw = clamp(rawYaw, -yawLimit, yawLimit);
+
                     if (Math.abs(error) < aimTolerance) {
-                        yaw = 0;
-                        axial     = 0;
-                        lateral   = 0;
+                        yaw     = 0;
+                        axial   = 0;
+                        lateral = 0;
                         autoState = AutoState.SPINNING;
                     }
                 }
@@ -208,6 +225,7 @@ public class TeleOpBlue extends LinearOpMode {
         shootMotor  = hardwareMap.get(DcMotorEx.class, "shootMotor");
         intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         shootMotor2 = hardwareMap.get(DcMotorEx.class, "shootMotor2");
+        liftMotor   = hardwareMap.get(DcMotorEx.class, "liftMotor");
 
         hoodServo  = hardwareMap.get(Servo.class, "hoodServo");
         blockServo = hardwareMap.get(Servo.class, "blockServo");
@@ -221,28 +239,33 @@ public class TeleOpBlue extends LinearOpMode {
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
 
-        // Drive direction
+        // ── Drive motor directions ──
         leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
         rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        // Drive brake
+        // ── Zero-power behavior ──
         leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
+        // ── Shooter motor setup ──
         shootMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         shootMotor2.setDirection(DcMotorEx.Direction.REVERSE);
 
-        // Servo starting positions
+        // ── Lift motor setup ──
+        liftMotor.setDirection(DcMotorEx.Direction.REVERSE);
+        liftMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+
+
+        // ── Servo starting positions ──
         hoodServo.setPosition(0.42);
         blockServo.setPosition(BLOCK_SERVO_DOWN);
 
-        // Limelight
         limelight.start();
         limelight.pipelineSwitch(0);
     }
@@ -258,7 +281,7 @@ public class TeleOpBlue extends LinearOpMode {
                     shooterOverride ? 0 : 0,
                     shooterOverride ? 1 : 0,
                     shooterOverride ? 0 : 1,
-                    LED_DURATION_CONTINUOUS); // green=OFF, blue=ON
+                    LED_DURATION_CONTINUOUS);
         }
 
         // D-pad up: toggle manual override
@@ -272,7 +295,15 @@ public class TeleOpBlue extends LinearOpMode {
             }
         }
 
-        // Circle/Square: intake toggle — only allowed when not in a shoot sequence
+        // Y (triangle): toggle lift up/down
+        if (gamepad1.triangleWasPressed()) {
+            liftUp = !liftUp;
+            liftMotor.setTargetPosition(liftUp ? LIFT_UP_POSITION : 0);
+            liftMotor.setPower(LIFT_POWER);
+            liftMotor.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
+        }
+
+        // Circle/Square: intake toggle — only when not in a shoot sequence
         if (autoState == AutoState.IDLE) {
             if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
             if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
@@ -287,8 +318,6 @@ public class TeleOpBlue extends LinearOpMode {
 
     // =========================================================
     //  Shoot sequence initiation
-    //  Saves intake state, kills intake, then transitions to
-    //  AIMING (auto) or SPINNING (manual).
     // =========================================================
     private double startShootSequence(double yaw) {
         if (manualOverride) {
@@ -308,12 +337,11 @@ public class TeleOpBlue extends LinearOpMode {
             preShootIntakeState = intakeOn;
             intakeOn = 0;
             intakeMotor.setPower(0);
-            distance           = clampDistance(getStableDistance());
-            velocityLocked     = true;
-            lockedRPM          = controlPointsRPM.get(distance);
-            lockedHood         = controlPointsHood.get(distance);
-            // Reset PID so stale integral/derivative don't kick the robot on entry
-            aimPid = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
+            distance       = clampDistance(getStableDistance());
+            velocityLocked = true;
+            lockedRPM      = controlPointsRPM.get(distance);
+            lockedHood     = controlPointsHood.get(distance);
+            aimPid         = new PIDFController(new PIDFCoefficients(Kp_aim, Ki_aim, Kd_aim, Kf_aim));
             autoState          = AutoState.AIMING;
             hasRumbledForBlock = false;
         }
@@ -333,12 +361,7 @@ public class TeleOpBlue extends LinearOpMode {
 
     // =========================================================
     //  PV Shooter controller
-    //
     //   power = kS  +  kV × target  +  kP × (target − actual)
-    //
-    //   kS  — overcomes static friction
-    //   kV  — open-loop feedforward; maps target velocity to approximate power
-    //   kP  — proportional term that closes the loop on remaining velocity error
     // =========================================================
     private void setShooterPV(double targetRPM) {
         if (targetRPM <= 0 || shooterOverride) {
@@ -346,15 +369,12 @@ public class TeleOpBlue extends LinearOpMode {
             shootMotor2.setPower(0);
             return;
         }
-
-        double shootVel   = shootMotor.getVelocity();
-        double shootPower = kS + (kV * targetRPM) + (kP * (targetRPM - shootVel));
-
-        shootMotor.setPower(clamp(shootPower, -1, 1));
-        shootMotor2.setPower(clamp(shootPower, -1, 1));
+        double vel   = shootMotor.getVelocity();
+        double power = kS + (kV * targetRPM) + (kP * (targetRPM - vel));
+        shootMotor.setPower(clamp(power, -1, 1));
+        shootMotor2.setPower(clamp(power, -1, 1));
     }
 
-    /** Returns true when shooter velocity is within rpmTolerance of target. */
     private boolean atRPMTarget(double targetRPM) {
         return Math.abs(shootMotor.getVelocity() - targetRPM) < rpmTolerance;
     }
@@ -379,7 +399,6 @@ public class TeleOpBlue extends LinearOpMode {
         switch (autoState) {
 
             case SPINNING:
-                // Intake is off during spin-up (killed in startShootSequence)
                 if (cameraBlocked && !manualOverride) {
                     abortSequence("blocked during spin");
                 } else if (atRPMTarget(targetRPM)) {
@@ -398,7 +417,6 @@ public class TeleOpBlue extends LinearOpMode {
                     break;
                 }
 
-                // Raise block servo once on entry — intake NOT started yet
                 if (!isBlocking) {
                     isBlocking = true;
                     blockTimer.reset();
@@ -407,18 +425,14 @@ public class TeleOpBlue extends LinearOpMode {
                     blockServo.setPosition(BLOCK_SERVO_UP);
                 }
 
-                // Start intake only after the delay has elapsed
                 if (!intakeStarted && blockServoUpTimer.milliseconds() >= BLOCK_INTAKE_DELAY_MS) {
                     intakeStarted = true;
-                    if (distance > 110) {
-                        intakeMotor.setPower(LONG_RANGE_INTAKE_SPEED);
-                    } else {
-                        intakeMotor.setPower(-1.0);
-                    }
+                    intakeMotor.setPower(distance > LONG_RANGE_AIM_THRESHOLD
+                            ? LONG_RANGE_INTAKE_SPEED
+                            : -1.0);
                     intakeOn = 1;
                 }
 
-                // Close servo after full duration and return to IDLE
                 if (blockTimer.milliseconds() >= BLOCK_OPEN_DURATION_MS) {
                     blockServo.setPosition(BLOCK_SERVO_DOWN);
                     isBlocking     = false;
@@ -429,15 +443,12 @@ public class TeleOpBlue extends LinearOpMode {
                     applyIntakePower();
                 }
                 break;
+
             default:
                 break;
         }
     }
 
-    /**
-     * Applies motor power matching the current intakeOn state.
-     * Called whenever intakeOn is restored after a shoot sequence.
-     */
     private void applyIntakePower() {
         switch (intakeOn) {
             case 1:  intakeMotor.setPower(-1); break;
@@ -446,7 +457,6 @@ public class TeleOpBlue extends LinearOpMode {
         }
     }
 
-    /** Cancel any active shoot sequence and return to idle. */
     private void abortSequence(String reason) {
         if (!hasRumbledForBlock) {
             gamepad1.rumble(1.0, 1.0, 500);
@@ -541,14 +551,10 @@ public class TeleOpBlue extends LinearOpMode {
         return 0;
     }
 
-    /**
-     * Clamps raw distance into the two calibrated LUT ranges,
-     * holding at the edge values across the dead-band gap (~85–110 in).
-     */
     private double clampDistance(double d) {
         if (d < 22)   return 23;
         if (d <= 85)  return d;
-        if (d < 110)  return 79;   // hold at last close-range point
+        if (d < 110)  return 79;
         if (d <= 135) return d;
         return 134;
     }
@@ -557,7 +563,6 @@ public class TeleOpBlue extends LinearOpMode {
     //  Lookup table construction
     // =========================================================
     private void buildLookupTables() {
-        // RPM vs distance (inches)
         controlPointsRPM.add(22,  1000);
         controlPointsRPM.add(25,  1000);
         controlPointsRPM.add(30,  1000);
@@ -573,14 +578,13 @@ public class TeleOpBlue extends LinearOpMode {
         controlPointsRPM.add(80,  1280);
         controlPointsRPM.add(85,  1280);
         controlPointsRPM.add(110, 1360);
-        controlPointsRPM.add(115, 1365);
-        controlPointsRPM.add(120, 1380);
+        controlPointsRPM.add(115, 1370);
+        controlPointsRPM.add(120, 1390);
         controlPointsRPM.add(125, 1390);
-        controlPointsRPM.add(130, 1440);
+        controlPointsRPM.add(130, 1430);
         controlPointsRPM.add(135, 1450);
         controlPointsRPM.createLUT();
 
-        // Hood position vs distance (inches)
         controlPointsHood.add(22,  0.482);
         controlPointsHood.add(25,  0.482);
         controlPointsHood.add(30,  0.482);
@@ -596,9 +600,9 @@ public class TeleOpBlue extends LinearOpMode {
         controlPointsHood.add(80,  0.510);
         controlPointsHood.add(85,  0.510);
         controlPointsHood.add(110, 0.536);
-        controlPointsHood.add(115, 0.536);
-        controlPointsHood.add(120, 0.538);
-        controlPointsHood.add(125, 0.538);
+        controlPointsHood.add(115, 0.540);
+        controlPointsHood.add(120, 0.540);
+        controlPointsHood.add(125, 0.540);
         controlPointsHood.add(130, 0.546);
         controlPointsHood.add(135, 0.568);
         controlPointsHood.createLUT();
@@ -614,56 +618,55 @@ public class TeleOpBlue extends LinearOpMode {
         double liftRPM    = shootMotor2.getVelocity();
         double txAngle    = getTx(20);
 
-        // ── State ──────────────────────────────────────────────────────────
-        telemetry.addData("State/AutoState",      autoState.toString());
-        telemetry.addData("State/ManualOverride",  manualOverride);
-        telemetry.addData("State/ShooterOFF",      shooterOverride);
-        telemetry.addData("State/CameraBlocked",   cameraBlocked);
-        telemetry.addData("State/VelocityLocked",  velocityLocked);
+        telemetry.addData("State/AutoState",       autoState.toString());
+        telemetry.addData("State/ManualOverride",   manualOverride);
+        telemetry.addData("State/ShooterOFF",       shooterOverride);
+        telemetry.addData("State/CameraBlocked",    cameraBlocked);
+        telemetry.addData("State/VelocityLocked",   velocityLocked);
 
-        // ── Intake ─────────────────────────────────────────────────────────
-        telemetry.addData("Intake/State",          intakeOn);
-        telemetry.addData("Intake/PreShootState",  preShootIntakeState);
-        telemetry.addData("Intake/Power",          intakeMotor.getPower());
+        telemetry.addData("Intake/State",           intakeOn);
+        telemetry.addData("Intake/PreShootState",   preShootIntakeState);
+        telemetry.addData("Intake/Power",           intakeMotor.getPower());
 
-        // ── Shooter ────────────────────────────────────────────────────────
-        telemetry.addData("Shooter/TargetRPM",     targetRPM);
-        telemetry.addData("Shooter/ActualRPM",     actualRPM);
-        telemetry.addData("Shooter/LiftRPM",       liftRPM);
-        telemetry.addData("Shooter/LockedRPM",     lockedRPM);
-        telemetry.addData("Shooter/RPM_Error",     rpmError);
-        telemetry.addData("Shooter/AtTarget",      atRPMTarget(targetRPM));
-        telemetry.addData("Shooter/ShootPower",    shootPower);
-        telemetry.addData("Shooter/LiftPower",     shootMotor2.getPower());
+        telemetry.addData("Shooter/TargetRPM",      targetRPM);
+        telemetry.addData("Shooter/ActualRPM",      actualRPM);
+        telemetry.addData("Shooter/LiftRPM",        liftRPM);
+        telemetry.addData("Shooter/LockedRPM",      lockedRPM);
+        telemetry.addData("Shooter/RPM_Error",      rpmError);
+        telemetry.addData("Shooter/AtTarget",       atRPMTarget(targetRPM));
+        telemetry.addData("Shooter/ShootPower",     shootPower);
+        telemetry.addData("Shooter/LiftPower",      shootMotor2.getPower());
 
-        // ── Hood ───────────────────────────────────────────────────────────
-        telemetry.addData("Hood/Target",           hoodTarget);
-        telemetry.addData("Hood/Position",         hoodServo.getPosition());
+        telemetry.addData("Hood/Target",            hoodTarget);
+        telemetry.addData("Hood/Position",          hoodServo.getPosition());
 
-        // ── PV Gains ───────────────────────────────────────────────────────
-        telemetry.addData("PV/kS",                 kS);
-        telemetry.addData("PV/kV",                 kV);
-        telemetry.addData("PV/kP",                 kP);
-        telemetry.addData("PV/term_kS",            kS);
-        telemetry.addData("PV/term_kV",            kV * targetRPM);
-        telemetry.addData("PV/term_kP",            kP * rpmError);
+        telemetry.addData("PV/kS",                  kS);
+        telemetry.addData("PV/kV",                  kV);
+        telemetry.addData("PV/kP",                  kP);
+        telemetry.addData("PV/term_kS",             kS);
+        telemetry.addData("PV/term_kV",             kV * targetRPM);
+        telemetry.addData("PV/term_kP",             kP * rpmError);
 
-        // ── Aim PIDF ───────────────────────────────────────────────────────
-        telemetry.addData("Aim/TX_degrees",        txAngle);
-        telemetry.addData("Aim/Yaw_output",        yaw);
-        telemetry.addData("Aim/Kp",                Kp_aim);
-        telemetry.addData("Aim/Ki",                Ki_aim);
-        telemetry.addData("Aim/Kd",                Kd_aim);
-        telemetry.addData("Aim/Kf",                Kf_aim);
-        telemetry.addData("Aim/Tolerance",         aimTolerance);
+        telemetry.addData("Aim/TX_degrees",         txAngle);
+        telemetry.addData("Aim/Yaw_output",         yaw);
+        telemetry.addData("Aim/Kp",                 Kp_aim);
+        telemetry.addData("Aim/Ki",                 Ki_aim);
+        telemetry.addData("Aim/Kd",                 Kd_aim);
+        telemetry.addData("Aim/Kf",                 Kf_aim);
+        telemetry.addData("Aim/Tolerance",          aimTolerance);
+        telemetry.addData("Aim/MaxYaw_LongRange",   AIM_MAX_YAW_LONG_RANGE);
+        telemetry.addData("Aim/LongRangeThreshold", LONG_RANGE_AIM_THRESHOLD);
 
-        // ── Distance ───────────────────────────────────────────────────────
-        telemetry.addData("Distance/Raw_in",       distance);
-        telemetry.addData("Distance/Clamped_in",   clampDistance(distance));
+        telemetry.addData("Distance/Raw_in",        distance);
+        telemetry.addData("Distance/Clamped_in",    clampDistance(distance));
 
-        // ── Block servo ────────────────────────────────────────────────────
-        telemetry.addData("Block/IsBlocking",      isBlocking);
-        telemetry.addData("Block/TimerMs",         blockTimer.milliseconds());
+        telemetry.addData("Block/IsBlocking",       isBlocking);
+        telemetry.addData("Block/TimerMs",          blockTimer.milliseconds());
+
+        telemetry.addData("Lift/Up",                liftUp);
+        telemetry.addData("Lift/TargetPos",         liftUp ? LIFT_UP_POSITION : 0);
+        telemetry.addData("Lift/CurrentPos",        liftMotor.getCurrentPosition());
+        telemetry.addData("Lift/Power",             liftMotor.getPower());
 
         telemetry.update();
     }

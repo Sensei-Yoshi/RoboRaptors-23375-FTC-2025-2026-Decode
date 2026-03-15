@@ -25,7 +25,7 @@ public class TwelveBallAutoBlue extends OpMode {
     final double hoodServoClose = 0.48;
     //Change:
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(40)).mirror();
+    private final Pose scorePose = new Pose(101, 103, Math.toRadians(40)).mirror();
     private final Pose turnPose = new Pose(84.1, 82, Math.toRadians(0)).mirror();
     private final Pose pickup1Pose = new Pose(128, 83, Math.toRadians(0)).mirror();
     private final Pose pickup2Pose = new Pose(94, 59, Math.toRadians(0)).mirror();
@@ -56,13 +56,13 @@ public class TwelveBallAutoBlue extends OpMode {
                 .setConstantHeadingInterpolation(turnPose.getHeading())
                 .build();
         gatePush = follower.pathBuilder()
-                .addPath(new BezierCurve(pickup1Pose, (new Pose(107, 73)), gatePose))
+                .addPath(new BezierCurve(pickup1Pose, (new Pose(107, 73)).mirror(), gatePose))
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();
 
         grabPickup1 = follower.pathBuilder() //get next 3
                 //turnPose
-                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)),  pickup1Pose))
+                .addPath(new BezierCurve(scorePose, (new Pose(67, 82)).mirror(),  pickup1Pose))
                 //ConstantHeading
                 .setConstantHeadingInterpolation(pickup1Pose.getHeading())
                 .build();

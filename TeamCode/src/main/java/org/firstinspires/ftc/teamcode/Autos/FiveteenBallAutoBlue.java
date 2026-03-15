@@ -25,13 +25,14 @@ public class FiveteenBallAutoBlue extends OpMode {
     final double hoodServoClose = 0.48;
     //Change:
     private final Pose startPose = new Pose(122.3, 122.3, Math.toRadians(40)).mirror();
-    private final Pose scorePose = new Pose(103, 103, Math.toRadians(41)).mirror();
+    private final Pose scorePose = new Pose(103, 103, Math.toRadians(42)).mirror();
     private final Pose pickup1Pose = new Pose(125, 85, Math.toRadians(0)).mirror();
     private final Pose pickup3Pose = new Pose(126, 59, Math.toRadians(0)).mirror();
     private final Pose pickup5Pose = new Pose(126, 35, Math.toRadians(0)).mirror();
     private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
-    private final Pose gatePose = new Pose(133, 58.5, Math.toRadians(33)).mirror();
-    private final Pose pickGatePose = new Pose(133, 58, Math.toRadians(70)).mirror();
+    private final Pose gatePose = new Pose(119, 64, Math.toRadians(0));
+    private final Pose pickGatePose = new Pose(127, 49.5, Math.toRadians(75)).mirror();
+    private final Pose runGatePose = new Pose(127, 58, Math.toRadians(75)).mirror();
 
     private DcMotorEx shootMotor = null;
     private DcMotorEx shootMotor2 = null;
@@ -42,7 +43,7 @@ public class FiveteenBallAutoBlue extends OpMode {
     private Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
-    private PathChain scorePreload, grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, parkRun, gatePush, scoreGate, pickGate;
+    private PathChain scorePreload, grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, parkRun, gatePush, scoreGate, pickGate, runGate;
 
     public void buildPaths() {
         scorePreload = follower.pathBuilder() //shoot first 3 balls
@@ -106,13 +107,19 @@ public class FiveteenBallAutoBlue extends OpMode {
                */
                 .build();
         scoreGate = follower.pathBuilder()
-                .addPath(new BezierCurve(gatePose, (new Pose(79, 67)).mirror(), scorePose))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
+                .addPath(new BezierCurve(runGatePose, (new Pose(76, 67)).mirror(), scorePose))
+                .setLinearHeadingInterpolation(runGatePose.getHeading(), scorePose.getHeading())
                 .build();
         pickGate = follower.pathBuilder()
                 .addPath(new BezierLine(gatePose, pickGatePose))
+                .setLinearHeadingInterpolation(gatePose.getHeading(),pickGatePose.getHeading())
+                .build();
+        runGate = follower.pathBuilder()
+                .addPath(new BezierLine(pickGatePose, runGatePose))
                 .setConstantHeadingInterpolation(pickGatePose.getHeading())
                 .build();
+
+
 
 
 
@@ -123,9 +130,9 @@ public class FiveteenBallAutoBlue extends OpMode {
         switch (pathState) {
             case 0:
                 blockServo.setPosition(blockServoUp);
-                shootMotor.setVelocity(1110);
-                shootMotor2.setVelocity(1110);// Increase or decrease by 5
-                follower.followPath(scorePreload, true);
+                shootMotor.setVelocity(1080);
+                shootMotor2.setVelocity(1080);// Increase or decrease by 5
+                follower.followPath(scorePreload, 0.9,true);
                 setPathState(1);
                 break;
             case 1:
@@ -156,23 +163,32 @@ public class FiveteenBallAutoBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(gatePush,true);
-                    setPathState(20);
+                    setPathState(4);
                 }
                 break;
-            case 20: if (!follower.isBusy()) {
-                follower.followPath(pickGate,true);
-                setPathState(4);
-            }
             case 4:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
-                    while (pathTimer.getElapsedTimeSeconds() < 1.4) {}
-                    intakeMotor.setPower(0);
-                    follower.followPath(scoreGate);
+                    while (pathTimer.getElapsedTimeSeconds() < 0.2) {}
+                    follower.followPath(pickGate, true);
                     setPathState(5);
                 }
                 break;
             case 5:
+                if (!follower.isBusy()) {
+                    pathTimer.resetTimer();
+                    follower.followPath(runGate, true);
+                    setPathState(20);
+                }
+                break;
+            case 20:
+                if (!follower.isBusy()) {
+                    while (pathTimer.getElapsedTimeSeconds() < 0.4) {}
+                    follower.followPath(scoreGate, 0.9, true);
+                    setPathState(6);
+                }
+                break;
+            case 6:
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
@@ -181,20 +197,20 @@ public class FiveteenBallAutoBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(grabPickup1, true);
-                    setPathState(6);
+                    setPathState(7);
                 }
                 break;
-            case 6:
+            case 7:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {
                     }
                     intakeMotor.setPower(0);
                     follower.followPath(scorePickup1, 0.9, true);
-                    setPathState(7);
+                    setPathState(8);
                 }
                 break;
-            case 7:
+            case 8:
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
@@ -203,19 +219,19 @@ public class FiveteenBallAutoBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(grabPickup3, true);
-                    setPathState(8);
+                    setPathState(9);
                 }
-            case 8:
+            case 9:
                 if (!follower.isBusy()) {
                     pathTimer.resetTimer();
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {
                     }
                     follower.followPath(scorePickup3,0.9,true);
                     intakeMotor.setPower(0);
-                    setPathState(9);
+                    setPathState(10);
                 }
                 break;
-            case 9:
+            case 10:
                 if (!follower.isBusy()) {
                     blockServo.setPosition(blockServoUp);
                     while (pathTimer.getElapsedTimeSeconds() < 0.15) {}
@@ -224,10 +240,10 @@ public class FiveteenBallAutoBlue extends OpMode {
                     while (pathTimer.getElapsedTimeSeconds() < 0.7) {}
                     blockServo.setPosition(blockServoDown);
                     follower.followPath(parkRun,true);
-                    setPathState(10);
+                    setPathState(11);
                 }
                 break;
-            case 10:
+            case 11:
                 if (!follower.isBusy()) {
                     setPathState(-1);
                 }

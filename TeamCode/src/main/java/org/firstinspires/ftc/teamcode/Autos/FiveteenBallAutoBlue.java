@@ -28,11 +28,11 @@ public class FiveteenBallAutoBlue extends OpMode {
     private final Pose scorePose = new Pose(103, 103, Math.toRadians(42)).mirror();
     private final Pose pickup1Pose = new Pose(125, 85, Math.toRadians(0)).mirror();
     private final Pose pickup3Pose = new Pose(126, 59, Math.toRadians(0)).mirror();
-    private final Pose pickup5Pose = new Pose(126, 35, Math.toRadians(0)).mirror();
+    private final Pose pickup5Pose = new Pose(125, 35, Math.toRadians(0)).mirror();
     private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
-    private final Pose gatePose = new Pose(119, 64, Math.toRadians(0));
+    private final Pose gatePose = new Pose(119, 64, Math.toRadians(0)).mirror();
     private final Pose pickGatePose = new Pose(127, 49.5, Math.toRadians(75)).mirror();
-    private final Pose runGatePose = new Pose(127, 58, Math.toRadians(75)).mirror();
+    private final Pose runGatePose = new Pose(127, 58, Math.toRadians(75)).mirror(); //127 turnpike
 
     private DcMotorEx shootMotor = null;
     private DcMotorEx shootMotor2 = null;

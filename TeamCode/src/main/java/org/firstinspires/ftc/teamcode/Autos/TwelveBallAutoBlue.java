@@ -33,7 +33,7 @@ public class TwelveBallAutoBlue extends OpMode {
     private final Pose pickup4Pose = new Pose(94, 38, Math.toRadians(0)).mirror();
     private final Pose pickup5Pose = new Pose(127, 38, Math.toRadians(0)).mirror();
     private final Pose park = new Pose(113, 74, Math.toRadians(0)).mirror();
-    private final Pose gatePose = new Pose(126, 77, Math.toRadians(0)).mirror();
+    private final Pose gatePose = new Pose(125, 77, Math.toRadians(0)).mirror();
 
     private DcMotorEx shootMotor = null;
     private DcMotorEx shootMotor2 = null;

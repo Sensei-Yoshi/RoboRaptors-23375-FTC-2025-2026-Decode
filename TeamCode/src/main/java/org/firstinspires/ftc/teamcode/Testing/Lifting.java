@@ -26,12 +26,13 @@ public class Lifting extends LinearOpMode {
     private DcMotorEx intakeMotor = null;
     private DcMotorEx shootMotor = null;
     private DcMotorEx liftMotor = null;
-    private Servo pushServo = null;
+    private DcMotorEx liftMotor2 = null;
+    private Servo leftServo = null;
     private Servo blockServo = null;
-    private Servo hoodServo = null;
+    private Servo rightServo = null;
     private Servo light = null;
     //Changeable:
-    final double closeLaunch = 1050; //Changes how fast flywheel moves
+    private double closeLaunch = -0.5; //Changes how fast flywheel moves
     final double farLaunch = 1580;
 
     final double pushServoDown = 0.85; //change if too close to ground: <0.9 == up and >0.9 = down
@@ -42,47 +43,38 @@ public class Lifting extends LinearOpMode {
 
     final double hoodServoClose = 0.48; //== <0.48 == less curved shot and >0.48 == direct shot
     final double hoodServoFar = 0.52;
+    private double hoodPos        = 0;
 
 
     @Override
     public void runOpMode() {
 
-        intakeMotor = hardwareMap.get(DcMotorEx.class, "intakeMotor");
-        leftFrontDrive = hardwareMap.get(DcMotor.class, "left_front_drive");
-        leftBackDrive = hardwareMap.get(DcMotor.class, "left_back_drive");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "right_front_drive");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "right_back_drive");
-        shootMotor = hardwareMap.get(DcMotorEx.class, "shootMotor");
+
+
         //pushServo = hardwareMap.get(Servo.class, "pushServo");
-        blockServo = hardwareMap.get(Servo.class, "blockServo");
-        hoodServo = hardwareMap.get(Servo.class, "hoodServo");
+       // blockServo = hardwareMap.get(Servo.class, "blockServo");
+       // leftServo = hardwareMap.get(Servo.class, "leftServo");
+      //  leftServo.setDirection(Servo.Direction.REVERSE);
+       // rightServo = hardwareMap.get(Servo.class, "rightServo");
+
         liftMotor = hardwareMap.get(DcMotorEx.class, "liftMotor");
-        light = hardwareMap.get(Servo.class, "light");
-
-
-        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
-        liftMotor.setDirection(DcMotor.Direction.REVERSE);
-
-        shootMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shootMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(300, 0, 0, 10));
+        liftMotor2 = hardwareMap.get(DcMotorEx.class, "liftMotor2");
 
 
 
-        leftFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        leftBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rightFrontDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+
+
+
+
 
         telemetry.addData("Status", "Initialized");
         telemetry.update();
         int intakeOn = 0, shots = 0;
         //pushServo.setPosition(pushServoDown);
-        blockServo.setPosition(blockServoDown);
-        hoodServo.setPosition(hoodServoClose); //0.53
+      // rightServo.setPosition(hoodPos);
+      // leftServo.setPosition((hoodPos));
+
         waitForStart();
         boolean shooterOverride = false;
         double lastShooterVelocity = closeLaunch;
@@ -104,10 +96,26 @@ public class Lifting extends LinearOpMode {
             double rightBackPower = (axial + lateral - yaw) / denominator;
 
 
+            if (gamepad1.dpadRightWasPressed()) closeLaunch        += 0.1;
+           if (gamepad1.dpadLeftWasPressed())  closeLaunch        -= 0.1;
+        //    leftServo.setPosition(hoodPos);
+        //    rightServo.setPosition(hoodPos);
+            if (gamepad1.circleWasPressed()) intakeOn = (intakeOn == 1) ? 0 : 1;
+            if (gamepad1.squareWasPressed()) intakeOn = (intakeOn == 2) ? 0 : 2;
+            switch (intakeOn) {
+                case 1:
+                    liftMotor.setPower(-1);
+                    break;
+                case 2:
+                    liftMotor.setPower(closeLaunch);
+                    break;
+                default:
+                    liftMotor.setPower(0);
+                    break;
 
-            liftMotor.setTargetPosition(-1150);
-            liftMotor.setPower(1);
-            liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            }
+            telemetry.addData("closeLaunch", closeLaunch);
+            telemetry.update();
 
 
 

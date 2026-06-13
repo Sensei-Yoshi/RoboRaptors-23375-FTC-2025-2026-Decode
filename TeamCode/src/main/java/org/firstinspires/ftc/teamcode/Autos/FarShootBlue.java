@@ -17,23 +17,23 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 public class FarShootBlue extends OpMode {
     final double pushServoDown   = 0.89;
     final double pushServoUp     = 0.3;
-    final double blockServoDown  = 0.84;
+    final double blockServoDown  = 0.78;  // matched to AutoAlignTele
     final double blockServoUp    = 0.25;
     final double hoodServoClose  = 0.48;
-    final double hoodServoFar    = 0.540;
+    final double hoodServoFar    = 0.543; // matched to AutoAlignTele LUT at ~135in
 
     // ─── PV shooter constants ────────────────────────────────────────────────
     private static final double kS         = 0.09;
     private static final double kV         = 0.0004;
     private static final double kP         = 0.01;
-    private static final double TARGET_RPM = 1380;
-    private static final double RPM_TOL    = 50;
+    private static final double TARGET_RPM = 1390; // matched to AutoAlignTele LUT at ~135in
+    private static final double RPM_TOL    = 20;
 
     // ─── Timing constants (seconds) ─────────────────────────────────────────
     private static final double BLOCK_RAISE_DELAY = 0.15;  // delay after raising block before slow intake starts
-    private static final double FIRE_DURATION      = 0.9;  // how long intake fires (block stays UP this whole time)
-    private static final double FIRE_DURATION_LONG = 1.0;  // longer fire window for shot 4
-    private static final double PARK_SETTLE        = 0.2;  // settle time after arriving at park/forward positions
+    private static final double FIRE_DURATION      = 1.2;  // how long intake fires (block stays UP this whole time)
+    private static final double FIRE_DURATION_LONG = 1.2;  // longer fire window for shot 4
+    private static final double PARK_SETTLE        = 0.5;  // settle time after arriving at park/forward positions
 
     // ─── Poses ───────────────────────────────────────────────────────────────
     private final Pose startPose     = new Pose(87,    8,    Math.toRadians(90)).mirror();
@@ -72,7 +72,8 @@ public class FarShootBlue extends OpMode {
     }
 
     private boolean atRPMTarget() {
-        return Math.abs(shootMotor.getVelocity() - TARGET_RPM) < RPM_TOL;
+        return Math.abs(shootMotor.getVelocity()  - TARGET_RPM) < RPM_TOL &&
+               Math.abs(shootMotor2.getVelocity() - TARGET_RPM) < RPM_TOL;
     }
 
     // =========================================================
@@ -212,7 +213,7 @@ public class FarShootBlue extends OpMode {
                 break;
             case 7:
                 if (!follower.isBusy() && pathTimer.getElapsedTimeSeconds() > PARK_SETTLE) {
-                    follower.followPath(score3);
+                    follower.followPath(score3, 0.8, true);
                     setPathState(8);
                 }
                 break;
@@ -257,7 +258,7 @@ public class FarShootBlue extends OpMode {
                 break;
             case 14:
                 if (!follower.isBusy() && pathTimer.getElapsedTimeSeconds() > PARK_SETTLE) {
-                    follower.followPath(score3);
+                    follower.followPath(score3, 0.8, true);
                     setPathState(15);
                 }
                 break;
@@ -302,7 +303,7 @@ public class FarShootBlue extends OpMode {
                 break;
             case 21:
                 if (!follower.isBusy() && pathTimer.getElapsedTimeSeconds() > PARK_SETTLE) {
-                    follower.followPath(score3);
+                    follower.followPath(score3, 0.8, true);
                     setPathState(22);
                 }
                 break;

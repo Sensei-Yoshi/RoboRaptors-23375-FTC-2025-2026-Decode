@@ -27,10 +27,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 @Config
-
-
-@TeleOp(name = "AutoAlignTeleRed", group = "Tuning")
-public class AutoAlignTele extends LinearOpMode {
+@TeleOp(name = "AutoAlignTeleBlue", group = "Tuning")
+public class AutoAlignTeleBlue extends LinearOpMode {
 
     // ─────────────────────────────────────────────
     //  Auto-shoot state machine
@@ -67,7 +65,7 @@ public class AutoAlignTele extends LinearOpMode {
     //  Shoot target — field coords in Pedro inches
     //  RED:  (138, 138)   BLUE: (6, 138)
     // ─────────────────────────────────────────────
-    public static double SHOOT_TARGET_X = 138.0;
+    public static double SHOOT_TARGET_X = 6.0;
     public static double SHOOT_TARGET_Y = 138.0;
 
     // ─────────────────────────────────────────────
@@ -166,7 +164,7 @@ public class AutoAlignTele extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  AprilTag filter — only accept botpose when this tag is visible
     // ─────────────────────────────────────────────
-    private static final int TARGET_TAG_ID = 24; // Red alliance
+    private static final int TARGET_TAG_ID = 20; // Blue alliance
 
     // ─────────────────────────────────────────────
     //  Misc
@@ -226,9 +224,9 @@ public class AutoAlignTele extends LinearOpMode {
             // ── AIMING_AND_SPINNING: rotate + wait for RPM simultaneously ─
             if (autoState == AutoState.AIMING_AND_SPINNING) {
                 double headingError = MathFunctions.getTurnDirection(
-                                robotPose.getHeading(), targetHeading)
+                        robotPose.getHeading(), targetHeading)
                         * MathFunctions.getSmallestAngleDifference(
-                                robotPose.getHeading(), targetHeading);
+                        robotPose.getHeading(), targetHeading);
 
                 // Update PIDF only when Dashboard tuning values change
                 if (Kp_aim != cachedKp || Ki_aim != cachedKi
@@ -440,7 +438,7 @@ public class AutoAlignTele extends LinearOpMode {
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return null;
 
-        // Only relocalize when our specific tag (ID 24, Red) is visible
+        // Only relocalize when our specific tag (ID 20, Blue) is visible
         boolean tagVisible = false;
         for (LLResultTypes.FiducialResult fiducial : result.getFiducialResults()) {
             if (fiducial.getFiducialId() == TARGET_TAG_ID) {

@@ -23,7 +23,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.List;
 
 @Config
-@TeleOp(name = "Blue TeleOp", group = "Tuning")
+@TeleOp(name = "Library TeleOp", group = "Tuning")
 public class TeleOpBlue extends LinearOpMode {
 
     // ─────────────────────────────────────────────
@@ -57,7 +57,7 @@ public class TeleOpBlue extends LinearOpMode {
     // ─────────────────────────────────────────────
     //  Aim PIDF constants  (tune via Dashboard)
     // ─────────────────────────────────────────────
-    public static double Kp_aim       = 0.008;
+    public static double Kp_aim       = 0.006; // 0.008
     public static double Ki_aim       = 0.0;
     public static double Kd_aim       = 0.0014;
     public static double Kf_aim       = 0.19;
@@ -157,9 +157,9 @@ public class TeleOpBlue extends LinearOpMode {
             handleButtons();
             updateCameraBlockStatus();
 
-            double axial   = -gamepad1.left_stick_y;
-            double lateral =  gamepad1.left_stick_x;
-            double yaw     =  gamepad1.right_stick_x;
+            double axial   = -gamepad1.left_stick_y *0.5;
+            double lateral =  gamepad1.left_stick_x *0.5;
+            double yaw     =  gamepad1.right_stick_x*0.5;
 
             // ── Trigger: start shoot sequence ──
             if (gamepad1.right_trigger > 0.3 && autoState == AutoState.IDLE) {
@@ -352,7 +352,7 @@ public class TeleOpBlue extends LinearOpMode {
     //  Drive
     // =========================================================
     private void driveMecanum(double axial, double lateral, double yaw) {
-        double d = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);
+        double d = Math.max(Math.abs(axial) + Math.abs(lateral) + Math.abs(yaw), 1);//0.5 to 1
         leftFrontDrive.setPower((axial + lateral + yaw) / d);
         rightFrontDrive.setPower((axial - lateral - yaw) / d);
         leftBackDrive.setPower((axial - lateral + yaw) / d);

@@ -94,7 +94,7 @@ public class Lifting extends LinearOpMode {
             double rightFrontPower = (axial - lateral - yaw) / denominator;
             double leftBackPower = (axial - lateral + yaw) / denominator;
             double rightBackPower = (axial + lateral - yaw) / denominator;
-
+            
 
             if (gamepad1.dpadRightWasPressed()) closeLaunch        += 0.1;
            if (gamepad1.dpadLeftWasPressed())  closeLaunch        -= 0.1;
